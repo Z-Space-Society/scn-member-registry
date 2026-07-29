@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.submitRequest",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Write the caller's membership application to their PDS.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "createdAt"],
+          "properties": {
+            "uri": { "type": "string", "format": "at-uri" },
+            "createdAt": { "type": "string", "format": "datetime" },
+            "note": { "type": "string", "maxLength": 1000, "maxGraphemes": 300 }
+          }
+        }
+      }
+    }
+  }
+}

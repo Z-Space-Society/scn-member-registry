@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.admin.list",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Shared Computer Network admins. The removedAt attribute ends an admin's write authority and their past grants remain valid. Removing an admin invalidates their past grants.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["admins", "updatedAt"],
+        "properties": {
+          "admins": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "#adminEntry" }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "adminEntry": {
+      "type": "object",
+      "required": ["did", "addedAt"],
+      "properties": {
+        "did": { "type": "string", "format": "did" },
+        "addedAt": { "type": "string", "format": "datetime" },
+        "removedAt": { "type": "string", "format": "datetime" }
+      }
+    }
+  }
+}

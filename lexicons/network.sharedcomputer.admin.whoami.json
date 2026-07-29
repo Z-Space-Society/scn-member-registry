@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.admin.whoami",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Report the caller's authenticated DID. Debug tool for testing which auth modes populate caller_did.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["authenticated"],
+          "properties": {
+            "authenticated": { "type": "boolean" },
+            "did": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

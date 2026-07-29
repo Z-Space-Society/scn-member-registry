@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.listRequests",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List membership applications from the index. Applications are public records in each applicant's own PDS.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["requests"],
+          "properties": {
+            "requests": { "type": "array", "items": { "type": "unknown" } },
+            "cursor": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

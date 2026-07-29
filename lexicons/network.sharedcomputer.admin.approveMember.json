@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.admin.approveMember",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Approve a membership application. Caller must be a current admin in the roster. Provisions the LiteLLM user (idempotent: user_id is the DID) and writes the grant to the registry space, authored by the calling admin.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did"],
+          "properties": {
+            "did": { "type": "string", "format": "did" },
+            "group": { "type": "string" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "uri": { "type": "string" },
+            "rkey": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

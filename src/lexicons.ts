@@ -11,6 +11,7 @@ export const NSID = {
   withdrawRequest: "network.sharedcomputer.membership.withdrawRequest",
   listRequests: "network.sharedcomputer.membership.listRequests",
   approveMember: "network.sharedcomputer.admin.approveMember",
+  setRoster: "network.sharedcomputer.admin.setRoster",
   grant: "network.sharedcomputer.membership.grant",
   revocation: "network.sharedcomputer.membership.revocation",
   group: "network.sharedcomputer.group",
@@ -85,6 +86,8 @@ export const spaceLexicons = [
     cursor: "string",
   }),
   query("com.atproto.simplespace.getConfig", { space: "string" }),
+  proc("dev.happyview.space.createInvite"),
+  proc("dev.happyview.space.acceptInvite"),
 ];
 
 /** Our endpoints: Lua-backed queries and record-write procedures. */
@@ -95,6 +98,7 @@ export const scnLexicons = [
   proc(NSID.submitRequest),
   proc(NSID.withdrawRequest),
   proc(NSID.approveMember),
+  proc(NSID.setRoster),
 ];
 
 export const allLexicons = [...repoLexicons, ...spaceLexicons, ...scnLexicons];

@@ -1,8 +1,6 @@
 # scn-manage
 
-Membership SPA for the Shared Computer Network co-op. See HANDOVER.md for
-design decisions, LEARNINGS.md for HappyView behavior, CLAUDE.md for
-architecture invariants.
+Membership SPA for Shared Computer Network.
 
 ## Development
 

@@ -35,7 +35,7 @@ working around it.
   session; that is what author-based verification records.
 - **The space authority is a service DID (did:plc), never a person's.**
   Authority is set at space creation and cannot be migrated. The rotation key
-  can speak as the co-op and cannot be re-issued if lost; its custody is a
+  can speak as the network and cannot be re-issued if lost; its custody is a
   board-level question.
 - Grants and revocations are **admin-authored only**. Applications are
   **member-authored only**. Never blur these.
@@ -53,7 +53,10 @@ working around it.
 - Any operation requiring the master key goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record
   (`network.sharedcomputer.admin.list` in the service DID's repo, anchored by
-  `env.SERVICE_DID`). Roster reads fail closed.
+  `env.SERVICE_DID`). Roster reads fail closed, with one exception: when no
+  roster record exists yet, `env.BOOTSTRAP_ADMIN_DID` is the sole admin so
+  the first roster can be written. An existing-but-empty roster still fails
+  closed.
 - Deployed Lua scripts can write HappyView's space tables directly (`db.raw`
   accepts INSERT on allowed tables, including space records and members).
   Script deployment — dashboard or Admin API — is therefore equivalent to

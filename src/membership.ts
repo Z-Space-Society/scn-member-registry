@@ -1,4 +1,5 @@
 import { NSID } from "./lexicons";
+import { pdsGetRecord } from "./pds";
 
 /**
  * The membership application is a public record in the applicant's own PDS
@@ -45,20 +46,10 @@ export async function submitRequest(
 
 /** Returns the caller's application, or null if they have not applied. */
 export async function getMyRequest(
-  xrpc: XrpcLike,
   did: string
 ): Promise<MembershipRequest | null> {
-  try {
-    const res = await xrpc.call("com.atproto.repo.getRecord", {
-      repo: did,
-      collection: NSID.request,
-      rkey: "self",
-    });
-    return res.data.value as MembershipRequest;
-  } catch (e) {
-    if ((e as { error?: string })?.error === "RecordNotFound") return null;
-    throw e;
-  }
+  const value = await pdsGetRecord(did, NSID.request, "self");
+  return value as MembershipRequest | null;
 }
 
 /** Withdraws the application by deleting the record from the applicant's PDS. */

@@ -27,13 +27,19 @@ function route(
     return;
   }
   if (location.hash === "#admin") {
-    renderAdminView(content, xrpc);
+    renderAdminView(content, xrpc, identity, cfg.serviceDid);
   } else {
-    renderMemberView(content, xrpc, identity);
+    renderMemberView(content, xrpc, identity, cfg.serviceDid);
   }
 }
 
 const { session, callbackError } = await initSession(oauthClient);
+
+// The SDK strips the callback query params but leaves the path; without this
+// the app lives at /oauth/callback after every sign-in.
+if (location.pathname === "/oauth/callback") {
+  history.replaceState(null, "", "/");
+}
 
 let xrpc: XrpcLike | null = null;
 let identity: Identity | null = null;

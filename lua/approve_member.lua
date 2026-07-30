@@ -26,7 +26,8 @@ function handle()
   end
 
   -- Write access: Current admins only (entries without removedAt). Departed
-  -- admins keep their history but not their authority.
+  -- admins keep their history but not their authority. When no roster record
+  -- exists yet, env.BOOTSTRAP_ADMIN_DID is the sole admin.
   local function require_current_admin(did)
     local res = db.query{
       did = env.SERVICE_DID,
@@ -34,7 +35,10 @@ function handle()
     }
     local roster = res.records and res.records[1]
     if not roster then
-      error("admin roster record not found for service DID")
+      if env.BOOTSTRAP_ADMIN_DID and did == env.BOOTSTRAP_ADMIN_DID then
+        return
+      end
+      error("no admin roster record and caller is not BOOTSTRAP_ADMIN_DID")
     end
     for _, entry in ipairs(roster.admins or {}) do
       if entry.did == did and not entry.removedAt then

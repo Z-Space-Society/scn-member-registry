@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   approveMember,
   deriveMemberState,
@@ -19,6 +19,31 @@ function fakeXrpc(impl: (nsid: string, params?: any, data?: any) => any): XrpcLi
   call: ReturnType<typeof vi.fn>;
 } {
   return { call: vi.fn(async (n, p, d) => ({ data: impl(n, p, d) })) };
+}
+
+/** Stubs fetch for the DID-doc resolution + PDS getRecord pair. */
+function stubPdsFetch(record: { value: unknown } | null) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url.startsWith("https://plc.directory/")) {
+        return new Response(
+          JSON.stringify({
+            service: [
+              { id: "#atproto_pds", serviceEndpoint: "https://pds.test" },
+            ],
+          })
+        );
+      }
+      if (record === null) {
+        return new Response(
+          JSON.stringify({ error: "RecordNotFound", message: "nope" }),
+          { status: 400 }
+        );
+      }
+      return new Response(JSON.stringify(record));
+    })
+  );
 }
 
 describe("submitRequest", () => {
@@ -47,30 +72,17 @@ describe("submitRequest", () => {
 });
 
 describe("getMyRequest", () => {
-  it("returns the record value when the application exists", async () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns the record value from the PDS when the application exists", async () => {
     const value = { createdAt: "2026-07-28T00:00:00Z", note: "hi" };
-    const xrpc = fakeXrpc(() => ({ value }));
-    expect(await getMyRequest(xrpc, DID)).toEqual(value);
+    stubPdsFetch({ value });
+    expect(await getMyRequest(DID)).toEqual(value);
   });
 
   it("returns null when no application exists", async () => {
-    const xrpc: XrpcLike = {
-      call: async () => {
-        throw Object.assign(new Error("not found"), {
-          error: "RecordNotFound",
-        });
-      },
-    };
-    expect(await getMyRequest(xrpc, DID)).toBeNull();
-  });
-
-  it("rethrows non-not-found errors", async () => {
-    const xrpc: XrpcLike = {
-      call: async () => {
-        throw Object.assign(new Error("nope"), { error: "AuthRequired" });
-      },
-    };
-    await expect(getMyRequest(xrpc, DID)).rejects.toThrow("nope");
+    stubPdsFetch(null);
+    expect(await getMyRequest(DID)).toBeNull();
   });
 });
 

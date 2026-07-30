@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.admin.setRoster",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Write the admin roster record to the caller's own repo at rkey self. The caller should be the service DID that's set in env.SERVICE_DID.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "admins", "updatedAt"],
+          "properties": {
+            "uri": { "type": "string", "format": "at-uri" },
+            "admins": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "network.sharedcomputer.admin.list#adminEntry"
+              }
+            },
+            "updatedAt": { "type": "string", "format": "datetime" }
+          }
+        }
+      }
+    }
+  }
+}

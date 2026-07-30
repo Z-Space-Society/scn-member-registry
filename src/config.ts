@@ -5,6 +5,11 @@ export interface Config {
   oauthScope: string;
   /** OAuth client ID. Loopback-constructed for dev unless explicitly set. */
   clientId: string;
+  /**
+   * The service DID whose repo anchors the admin roster. Public information;
+   * optional because it does not exist until the identity is set up.
+   */
+  serviceDid?: string;
 }
 
 const REQUIRED = [
@@ -37,5 +42,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     redirectUri,
     oauthScope,
     clientId,
+    serviceDid: env.VITE_SERVICE_DID || undefined,
   };
 }

@@ -49,14 +49,14 @@ export function renderShell(root: HTMLElement, identity: Identity | null) {
         <div class="gc-rainbow gc-rainbow--animated"></div>
         <div class="gc-statusbar">
           <strong>SYSTEM STATUS:</strong>
-          <span class="gc-lampgroup"><span id="lamp-gateway" class="gc-lamp"></span><span class="gc-lamp-label">GATEWAY</span></span>
-          <span class="gc-lampgroup"><span id="lamp-view" class="gc-lamp"></span><span class="gc-lamp-label">VIEW</span></span>
-          <span class="gc-lampgroup"><span class="gc-lamp"></span><span class="gc-lamp-label">CHAT</span> <span class="gc-small">(soon)</span></span>
+          <span class="inline-flex items-center gap-2"><span id="lamp-gateway" class="gc-lamp"></span><span class="gc-lamp-label">GATEWAY</span></span>
+          <span class="inline-flex items-center gap-2"><span id="lamp-view" class="gc-lamp"></span><span class="gc-lamp-label">VIEW</span></span>
+          <span class="inline-flex items-center gap-2"><span class="gc-lamp"></span><span class="gc-lamp-label">CHAT</span> <span class="gc-small">(soon)</span></span>
         </div>
         <div id="content" class="gc-main"></div>
         <div class="gc-rainbow"></div>
         <footer class="gc-footer">
-          operator desk staffed weekdays 09:00–17:00 · victoria, bc · best viewed with a shared computer
+          operator desk staffed weekdays 09:00–17:00 · vancouver, bc
         </footer>
       </div>
     </div>

@@ -8,13 +8,30 @@ import {
   type MemberViewState,
   type XrpcLike,
 } from "../membership";
+import { getRoster, isCurrentAdmin } from "../adminList";
 import { esc, fmtDate, resolveHandle, type Identity } from "../shell";
+
+/** Whether the signed-in user should see the admin area link. */
+async function showAdminLink(
+  identity: Identity,
+  serviceDid?: string
+): Promise<boolean> {
+  if (!serviceDid) return false;
+  if (identity.did === serviceDid) return true;
+  try {
+    const roster = await getRoster(serviceDid);
+    return roster ? isCurrentAdmin(roster, identity.did) : false;
+  } catch (e) {
+    console.warn("roster lookup for admin link failed:", e);
+    return false;
+  }
+}
 
 function stamp(state: MemberViewState["kind"]): string {
   const variants: Record<string, [string, string]> = {
     active: ["approved", "APPROVED"],
     pending: ["pending", "PENDING"],
-    unknown: ["pending", "PENDING?"],
+    unknown: ["visitor", "UNKNOWN"],
     apply: ["visitor", "VISITOR"],
   };
   const [variant, label] = variants[state];
@@ -41,8 +58,8 @@ function membershipCard(state: MemberViewState, identity: Identity): string {
   }
   return `
     <div class="gc-panel">
-      <div class="gc-panel-body" style="text-align: center;">
-        <div style="font-size: 12px; font-weight: 700; color: #000080; margin-bottom: 8px;">MEMBERSHIP RECORD</div>
+      <div class="gc-panel-body text-center">
+        <div class="text-xs font-bold text-[#000080] mb-2">MEMBERSHIP RECORD</div>
         <div class="gc-card">
           <div class="gc-card-handle">${esc(identity.handle ?? identity.did)}</div>
           ${stamp(state.kind)}
@@ -102,12 +119,13 @@ function placeholderPanels(): string {
 export async function renderMemberView(
   content: HTMLElement,
   xrpc: XrpcLike,
-  identity: Identity
+  identity: Identity,
+  serviceDid?: string
 ) {
   content.innerHTML = `<div class="gc-col"><p>Loading...</p></div>`;
 
   const [request, membership] = await Promise.all([
-    getMyRequest(xrpc, identity.did).catch((e) => {
+    getMyRequest(identity.did).catch((e) => {
       console.warn("application lookup failed:", e);
       return null;
     }),
@@ -121,8 +139,9 @@ export async function renderMemberView(
     main.push(applicationPanel((state as { request: MembershipRequest }).request));
   }
   if (state.kind === "unknown") {
+    console.warn("membership lookup failed:", state.error);
     main.push(
-      `<p class="gc-small">Membership status unavailable right now (<code>${esc(state.error)}</code>).</p>`
+      `<p class="gc-small">Membership status is unknown right now (the status service did not respond).</p>`
     );
   }
   if (state.kind === "active") main.push(placeholderPanels());
@@ -131,15 +150,17 @@ export async function renderMemberView(
     <div class="gc-col">${main.join("")}</div>
     <aside class="gc-aside">
       ${membershipCard(state, identity)}
-      <div class="gc-panel gc-note">
-        <div class="gc-panel-body">
-          <div style="font-size: 12px; font-weight: 700; color: #000080; margin-bottom: 8px;">THE CO-OP</div>
-          <p style="margin: 0; font-size: 13px;">Member-run inference. Each tier carries its own weekly allowance.</p>
-        </div>
-      </div>
-      <p style="text-align:center; margin: 0;"><button id="signout" class="gc-btn">SIGN OUT</button></p>
+      <div id="admin-link"></div>
+      <p class="text-center m-0"><button id="signout" class="gc-btn">SIGN OUT</button></p>
     </aside>
   `;
+
+  showAdminLink(identity, serviceDid).then((show) => {
+    const slot = document.getElementById("admin-link");
+    if (show && slot) {
+      slot.innerHTML = `<p class="text-center m-0"><a href="#admin">OPERATOR DESK →</a></p>`;
+    }
+  });
 
   if (state.kind === "active" && state.membership.grantedBy) {
     resolveHandle(state.membership.grantedBy).then((handle) => {
@@ -153,7 +174,7 @@ export async function renderMemberView(
     const note = (document.getElementById("note") as HTMLTextAreaElement).value;
     try {
       await submitRequest(xrpc, identity.did, note);
-      renderMemberView(content, xrpc, identity);
+      renderMemberView(content, xrpc, identity, serviceDid);
     } catch (err) {
       document.getElementById("apply-error")!.textContent =
         `Submission failed: ${(err as Error).message}`;
@@ -163,7 +184,7 @@ export async function renderMemberView(
   document.getElementById("withdraw")?.addEventListener("click", async () => {
     try {
       await withdrawRequest(xrpc, identity.did);
-      renderMemberView(content, xrpc, identity);
+      renderMemberView(content, xrpc, identity, serviceDid);
     } catch (err) {
       document.getElementById("withdraw-error")!.textContent =
         ` ${(err as Error).message}`;
@@ -191,10 +212,10 @@ export function renderSignInView(
       </section>
     </div>
     <aside class="gc-aside">
-      <div class="gc-panel gc-note">
+      <div class="gc-panel">
         <div class="gc-panel-body">
-          <div style="font-size: 12px; font-weight: 700; color: #000080; margin-bottom: 8px;">THE CO-OP</div>
-          <p style="margin: 0; font-size: 13px;">Community-run AI inference on shared hardware. Members sign in with the identity they already own.</p>
+          <div class="text-xs font-bold text-[#000080] mb-2">SHARED COMPUTER NETWORK</div>
+          <p class="m-0 text-[13px]">Community-run AI inference on shared hardware. Members sign in with the identity they already own.</p>
         </div>
       </div>
     </aside>

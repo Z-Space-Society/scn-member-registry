@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.getMine",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "The caller's own membership state, resolved from the registry space. Requires an authenticated session.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["active"],
+          "properties": {
+            "active": { "type": "boolean" },
+            "grantedBy": { "type": "string", "format": "did" },
+            "grant": { "type": "unknown" }
+          }
+        }
+      }
+    }
+  }
+}

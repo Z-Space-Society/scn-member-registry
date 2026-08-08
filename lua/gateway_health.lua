@@ -1,18 +1,20 @@
 -- Query: network.sharedcomputer.admin.gatewayHealth
--- Confirms if the Lua layer can reach LiteLLM using
--- secrets from script env.
+-- Proves the Lua layer can reach LiteLLM AND that the provisioner key is
+-- valid: /user/list is admin-gated, so a 200 means egress, secrets, and key
+-- role all work. The key must never appear in log() output or the returned
+-- table.
 
 function handle()
   if not env.LITELLM_BASE_URL then
     error("LITELLM_BASE_URL missing from script env")
   end
-  if not env.LITELLM_MASTER_KEY then
-    error("LITELLM_MASTER_KEY missing from script env")
+  if not env.LITELLM_PROVISIONER_KEY then
+    error("LITELLM_PROVISIONER_KEY missing from script env")
   end
 
   -- http.get throws on DNS failure but not on HTTP error statuses.
-  local ok, res = pcall(http.get, env.LITELLM_BASE_URL .. "/health/liveliness", {
-    headers = { Authorization = "Bearer " .. env.LITELLM_MASTER_KEY },
+  local ok, res = pcall(http.get, env.LITELLM_BASE_URL .. "/user/list", {
+    headers = { Authorization = "Bearer " .. env.LITELLM_PROVISIONER_KEY },
   })
 
   if not ok then

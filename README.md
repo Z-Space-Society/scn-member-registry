@@ -31,3 +31,17 @@ modules on loopback otherwise.
 ```sh
 npm test
 ```
+
+## Deploying lexicons and scripts
+
+`scripts/deploy.mjs` pushes every lexicon, its Lua script, and the endpoint
+config the dashboard cannot set (`target_collection`, `action`) to a HappyView
+instance. Script variables are read from the environment and pushed only when
+set locally. Every write is an upsert, so re-running is safe.
+
+```sh
+HAPPYVIEW_URL=http://127.0.0.1:3000 HAPPYVIEW_API_KEY=hv_... npm run deploy
+```
+
+Pass `--dry-run` to list what would be written. The manifest at the top of the
+script is the source of truth for which script backs which NSID.

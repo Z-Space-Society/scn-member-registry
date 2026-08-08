@@ -1,12 +1,13 @@
 -- Procedure: network.sharedcomputer.admin.approveMember
--- Caller must be a current admin in the roster record. Provisions the
--- member in LiteLLM (idempotent: user_id is the DID), then writes the grant
--- to the registry space. The runtime records author_did = caller_did, so the
--- grant is authored by the approving admin. Re-approval writes a redundant
--- grant, which is harmless: membership is "latest event wins".
+-- Caller must be a current admin in the roster record. Provisions the member
+-- in LiteLLM (idempotent: user_id is the DID), then writes the grant to the
+-- registry space. The runtime records author_did = caller_did, so the grant
+-- is authored by the approving admin. Re-approval writes a redundant grant,
+-- which is harmless: membership is "latest event wins".
 --
--- Not deployable until the registry space exists (open item 1) and the
--- LiteLLM provisioner key is set.
+-- Requires the Lua spaces write API (atproto.spaces.get / put_record);
+-- HappyView versions without it fail here with "attempt to call a nil
+-- value (field 'get')".
 
 function handle()
   if not caller_did then

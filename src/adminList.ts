@@ -88,6 +88,19 @@ export function isCurrentAdmin(entries: AdminEntry[], did: string): boolean {
   return entries.some((e) => e.did === did && !e.removedAt);
 }
 
+/**
+ * Grants or revokes registry space write membership. Only succeeds when the
+ * caller is the space authority; idempotent, so retrying after a partial
+ * add/remove is safe.
+ */
+export async function setSpaceAccess(
+  xrpc: XrpcLike,
+  did: string,
+  access: "write" | "none"
+): Promise<void> {
+  await xrpc.call(NSID.setSpaceAccess, undefined, { did, access });
+}
+
 export function withAdminAdded(
   entries: AdminEntry[],
   did: string,

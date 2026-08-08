@@ -6,7 +6,9 @@ import {
 } from "../membership";
 import {
   getRoster,
+  isCurrentAdmin,
   saveRoster,
+  setSpaceAccess,
   withAdminAdded,
   withAdminRemoved,
   type AdminEntry,
@@ -26,12 +28,13 @@ function row(app: ApplicationRow, i: number): string {
   `;
 }
 
-function rosterRow(entry: AdminEntry): string {
+function rosterRow(entry: AdminEntry, i: number): string {
   const status = entry.removedAt
     ? `removed ${fmtDate(entry.removedAt)}`
     : "ACTIVE";
   return `
     <tr>
+      <td><span id="roster-handle-${i}">...</span></td>
       <td class="gc-mono">${esc(entry.did)}</td>
       <td>${fmtDate(entry.addedAt)}</td>
       <td>${esc(status)}</td>
@@ -68,7 +71,7 @@ function rosterPanel(
   } else {
     body = `
       <table class="gc-table">
-        <thead><tr><th>DID</th><th>ADDED</th><th>STATUS</th><th class="num"></th></tr></thead>
+        <thead><tr><th>HANDLE</th><th>DID</th><th>ADDED</th><th>STATUS</th><th class="num"></th></tr></thead>
         <tbody>${roster.map(rosterRow).join("")}</tbody>
       </table>
       <p class="mt-3">
@@ -158,24 +161,58 @@ export async function renderAdminView(
     }
   });
 
+  // Adding an admin is two halves: the roster entry (authorization) and
+  // space write membership (ability). Re-adding an existing admin skips the
+  // roster write and just syncs space access, which makes a half-completed
+  // add repairable by clicking ADD again.
+  const rerenderWith = (next: AdminEntry[]) =>
+    renderAdminView(content, xrpc, identity, serviceDid, next);
+
+  // Space membership sync can fail independently of the roster write (the
+  // deployed HappyView may lack the Lua spaces write API). The roster is the
+  // authority record, so keep its result and surface the sync failure with
+  // the fallback instructions.
+  const syncAccess = async (did: string, access: "write" | "none", next: AdminEntry[]) => {
+    try {
+      await setSpaceAccess(xrpc, did, access);
+      rerenderWith(next);
+    } catch (e) {
+      rosterError(
+        `Roster updated, but space access sync failed (${(e as Error).message}). ` +
+          `Use the invite flow (createInvite/acceptInvite) to ${access === "write" ? "grant" : "revoke"} space membership.`
+      );
+    }
+  };
+
   document.getElementById("add-admin")?.addEventListener("click", async () => {
     const did = (document.getElementById("new-admin-did") as HTMLInputElement).value.trim();
+    const already = isCurrentAdmin(entries, did);
+    let next = entries;
     try {
-      await save(withAdminAdded(entries, did, new Date().toISOString()));
+      if (!already) {
+        next = withAdminAdded(entries, did, new Date().toISOString());
+        await saveRoster(xrpc, identity.did, next);
+      }
     } catch (e) {
       rosterError((e as Error).message);
+      return;
     }
+    await syncAccess(did, "write", next);
   });
 
   content.querySelectorAll<HTMLButtonElement>("[data-remove-admin]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const did = btn.dataset.removeAdmin!;
       if (did === identity.did && !confirm("Remove yourself from the roster?")) return;
+      let next: AdminEntry[];
       try {
-        await save(withAdminRemoved(entries, did, new Date().toISOString()));
+        next = withAdminRemoved(entries, did, new Date().toISOString());
+        await saveRoster(xrpc, identity.did, next);
       } catch (e) {
         rosterError((e as Error).message);
+        return;
       }
+      await syncAccess(did, "none", next);
     });
   });
 
@@ -184,6 +221,15 @@ export async function renderAdminView(
       resolveHandle(app.did).then((handle) => {
         const el = document.getElementById(`handle-${i}`);
         if (el && handle !== app.did) el.textContent = `${handle} (${app.did})`;
+      });
+    });
+  }
+
+  if (Array.isArray(roster)) {
+    roster.forEach((entry, i) => {
+      resolveHandle(entry.did).then((handle) => {
+        const el = document.getElementById(`roster-handle-${i}`);
+        if (el) el.textContent = handle !== entry.did ? handle : "?";
       });
     });
   }

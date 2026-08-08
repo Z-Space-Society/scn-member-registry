@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.admin.setSpaceAccess",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Grant or revoke registry space write membership for an admin. Caller must be the space authority (the service DID); the runtime enforces this. Idempotent in both directions.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "access"],
+          "properties": {
+            "did": { "type": "string", "format": "did" },
+            "access": { "type": "string", "enum": ["write", "none"] }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "member"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "member": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

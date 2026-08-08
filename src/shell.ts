@@ -35,7 +35,7 @@ export function renderShell(root: HTMLElement, identity: Identity | null) {
     <div class="gc-page">
       <div class="gc-frame">
         <header class="gc-banner">
-          <div class="gc-banner-title">OPERATOR</div>
+          <div class="gc-banner-title">SCN OPERATOR</div>
           <div class="gc-banner-sub">~ * ~ sharedcomputer.network member area ~ * ~</div>
           <div class="gc-banner-identity">
             ${

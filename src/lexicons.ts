@@ -12,6 +12,7 @@ export const NSID = {
   listRequests: "network.sharedcomputer.membership.listRequests",
   approveMember: "network.sharedcomputer.admin.approveMember",
   setRoster: "network.sharedcomputer.admin.setRoster",
+  setSpaceAccess: "network.sharedcomputer.admin.setSpaceAccess",
   grant: "network.sharedcomputer.membership.grant",
   revocation: "network.sharedcomputer.membership.revocation",
   group: "network.sharedcomputer.group",
@@ -65,6 +66,7 @@ export const spaceLexicons = [
   proc("com.atproto.simplespace.deleteSpace"),
   proc("com.atproto.simplespace.updateConfig"),
   proc("com.atproto.space.createRecord"),
+  proc("com.atproto.space.putRecord"),
   proc("com.atproto.space.deleteRecord"),
   query("com.atproto.space.listSpaces", {
     did: "string",
@@ -99,6 +101,7 @@ export const scnLexicons = [
   proc(NSID.withdrawRequest),
   proc(NSID.approveMember),
   proc(NSID.setRoster),
+  proc(NSID.setSpaceAccess),
 ];
 
 export const allLexicons = [...repoLexicons, ...spaceLexicons, ...scnLexicons];

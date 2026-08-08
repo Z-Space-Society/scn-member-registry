@@ -5,6 +5,7 @@ import {
   parseAdminList,
   rosterUri,
   saveRoster,
+  setSpaceAccess,
   withAdminAdded,
   withAdminRemoved,
 } from "../src/adminList";
@@ -168,5 +169,16 @@ describe("getRoster / saveRoster", () => {
       undefined,
       expect.objectContaining({ uri: rosterUri(B), admins })
     );
+  });
+});
+
+describe("setSpaceAccess", () => {
+  it("calls the procedure with did and access", async () => {
+    const xrpc = { call: vi.fn(async () => ({ data: { ok: true, member: true } })) };
+    await setSpaceAccess(xrpc, A, "write");
+    expect(xrpc.call).toHaveBeenCalledWith(NSID.setSpaceAccess, undefined, {
+      did: A,
+      access: "write",
+    });
   });
 });

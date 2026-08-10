@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.revokeKey",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Revoke one of the caller's own gateway keys.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["token"],
+          "properties": {
+            "token": {
+              "type": "string",
+              "description": "The key's hash, as returned by listMyKeys.",
+              "maxLength": 128
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": {
+            "ok": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

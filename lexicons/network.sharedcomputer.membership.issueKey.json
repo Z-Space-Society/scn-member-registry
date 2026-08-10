@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.issueKey",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Issue a gateway API key for the caller.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["label"],
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "Member-chosen name for the key.",
+              "maxLength": 64
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["key"],
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "The secret."
+            },
+            "alias": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

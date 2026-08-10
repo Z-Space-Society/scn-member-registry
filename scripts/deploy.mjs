@@ -68,6 +68,9 @@ const MANIFEST = [
   { file: "network.sharedcomputer.membership.listMembers.json", script: "list_members.lua" },
   { file: "network.sharedcomputer.membership.getMyUsage.json", script: "get_my_usage.lua" },
   { file: "network.sharedcomputer.membership.syncProfile.json", script: "sync_profile.lua" },
+  { file: "network.sharedcomputer.membership.listMyKeys.json", script: "list_my_keys.lua" },
+  { file: "network.sharedcomputer.membership.issueKey.json", script: "issue_key.lua" },
+  { file: "network.sharedcomputer.membership.revokeKey.json", script: "revoke_key.lua" },
   { file: "network.sharedcomputer.membership.getMine.json", script: "get_my_membership.lua" },
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
   { file: "network.sharedcomputer.admin.setSpaceAccess.json", script: "set_space_access.lua" },
@@ -85,6 +88,7 @@ const VARIABLES = [
   { key: "LITELLM_PROVISIONER_KEY" },
   { key: "SERVICE_DID", fallback: "VITE_SERVICE_DID" },
   { key: "BOOTSTRAP_ADMIN_DID" },
+  { key: "MAX_KEYS_PER_MEMBER" },
   { key: "REGISTRY_SPACE_URI", fallback: "VITE_REGISTRY_SPACE_URI" },
 ];
 

@@ -10,6 +10,13 @@ import {
 } from "../membership";
 import { getRoster, isCurrentAdmin } from "../adminList";
 import { formatInt, getMyUsage, sortUsageRows, type Usage } from "../usage";
+import {
+  issueKey,
+  keyLabel,
+  listMyKeys,
+  revokeKey,
+  type ApiKey,
+} from "../keys";
 import { esc, fmtDate, resolveHandle, type Identity } from "../shell";
 
 /** Whether the signed-in user should see the admin area link. */
@@ -170,9 +177,98 @@ function keysPanel(): string {
   return `
     <section class="gc-panel">
       <div class="gc-panel-title gc-panel-title--gray">API KEYS (for members who write their own tools)</div>
-      <div class="gc-construction"><span>UNDER CONSTRUCTION</span></div>
+      <div class="gc-panel-body" id="keys-body"><p>Loading keys...</p></div>
     </section>
   `;
+}
+
+function keysTable(keys: ApiKey[]): string {
+  const rows =
+    keys.length === 0
+      ? `<tr><td colspan="4" class="gc-small">No keys yet. You only need one to call the gateway from your own tools.</td></tr>`
+      : keys
+          .map(
+            (k) => `
+        <tr>
+          <td>${esc(keyLabel(k.alias))}</td>
+          <td>${esc(k.masked ?? "")}</td>
+          <td>${fmtDate(k.createdAt)}</td>
+          <td class="num"><button class="gc-btn" data-revoke="${esc(k.token)}">REVOKE</button></td>
+        </tr>`
+          )
+          .join("");
+  return `
+    <table class="gc-table">
+      <thead>
+        <tr><th>LABEL</th><th>KEY</th><th>CREATED</th><th class="num"></th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="mt-3">
+      <input id="key-label" class="gc-input" placeholder="what is it for?" maxlength="64">
+      <button id="issue-key" class="gc-btn mt-2">ISSUE NEW KEY</button>
+      <span id="keys-error" class="gc-error"></span>
+    </p>
+    <div id="new-key"></div>
+  `;
+}
+
+function newKeyNotice(key: string): string {
+  return `
+    <div class="gc-panel gc-note mt-3">
+      <div class="gc-panel-body">
+        <p><strong>Copy this now.</strong> It will never be shown again.</p>
+        <p class="gc-mono break-all">${esc(key)}</p>
+      </div>
+    </div>
+  `;
+}
+
+async function loadKeys(xrpc: XrpcLike) {
+  const body = document.getElementById("keys-body");
+  if (!body) return;
+  let keys: ApiKey[];
+  try {
+    keys = await listMyKeys(xrpc);
+  } catch (e) {
+    console.warn("key lookup failed:", e);
+    body.innerHTML = `<p class="gc-small">Keys are unavailable right now.</p>`;
+    return;
+  }
+  body.innerHTML = keysTable(keys);
+
+  const showError = (msg: string) => {
+    const el = document.getElementById("keys-error");
+    if (el) el.textContent = ` ${msg}`;
+  };
+
+  document.getElementById("issue-key")?.addEventListener("click", async () => {
+    const input = document.getElementById("key-label") as HTMLInputElement;
+    const label = input.value.trim();
+    if (!label) return showError("Give the key a name first.");
+    try {
+      const { key } = await issueKey(xrpc, label);
+      await loadKeys(xrpc);
+      const slot = document.getElementById("new-key");
+      if (slot) slot.innerHTML = newKeyNotice(key);
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  body.querySelectorAll<HTMLButtonElement>("[data-revoke]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Revoke this key? Anything using it stops working.")) return;
+      btn.disabled = true;
+      try {
+        await revokeKey(xrpc, btn.dataset.revoke!);
+        await loadKeys(xrpc);
+      } catch (e) {
+        btn.disabled = false;
+        showError((e as Error).message);
+      }
+    });
+  });
 }
 
 export async function renderMemberView(
@@ -214,7 +310,10 @@ export async function renderMemberView(
     </aside>
   `;
 
-  if (state.kind === "active") loadUsage(xrpc);
+  if (state.kind === "active") {
+    loadUsage(xrpc);
+    loadKeys(xrpc);
+  }
 
   showAdminLink(identity, serviceDid).then((show) => {
     const slot = document.getElementById("admin-link");

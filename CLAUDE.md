@@ -110,6 +110,11 @@ holds the authoritative team membership.
   unrecoverable, so an auto-created key is a row the member can never use.
   Members issue their own from the dashboard, where the secret appears once in
   their own browser and never passes through an admin.
+- **Key issuance is gated on active membership, and revocation on ownership.**
+  The provisioner key can mint and delete keys for anyone, so every procedure
+  that wields it re-establishes on the server which member is asking: issuing
+  proves active membership, revoking proves the key belongs to the caller.
+  A client may never aim that credential at another member.
 
 ## Rejected — do not re-propose
 

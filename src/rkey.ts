@@ -1,3 +1,5 @@
+import { assertDid, isDid } from "./did";
+
 /**
  * Grant and revocation rkeys are `{memberDid}:{tid}`. The rkey alone carries
  * subject and ordering, so membership for the whole roll is resolvable from
@@ -32,7 +34,7 @@ export interface EventKey {
 }
 
 export function eventRkey(did: string, tid: string = tidNow()): string {
-  if (!did.startsWith("did:")) throw new Error(`not a DID: ${did}`);
+  assertDid(did);
   if (!TID_RE.test(tid)) throw new Error(`not a TID: ${tid}`);
   return `${did}:${tid}`;
 }
@@ -46,7 +48,7 @@ export function parseEventRkey(rkey: string): EventKey {
   const cut = rkey.lastIndexOf(":");
   const did = rkey.slice(0, cut);
   const tid = rkey.slice(cut + 1);
-  if (cut < 0 || !did.startsWith("did:") || !TID_RE.test(tid)) {
+  if (cut < 0 || !isDid(did) || !TID_RE.test(tid)) {
     throw new Error(`malformed event rkey: ${rkey}`);
   }
   return { did, tid };

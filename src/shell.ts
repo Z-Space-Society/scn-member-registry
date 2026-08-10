@@ -11,7 +11,10 @@ export function fmtDate(iso?: string): string {
   return isNaN(d.getTime()) ? "?" : d.toISOString().slice(0, 10);
 }
 
-/** Best-effort DID to handle, via the public Bluesky AppView. */
+/**
+ * Best-effort DID to handle, via the public Bluesky AppView. Falls back to
+ * the DID when the handle is unknown.
+ */
 export async function resolveHandle(did: string): Promise<string> {
   try {
     const res = await fetch(
@@ -19,7 +22,9 @@ export async function resolveHandle(did: string): Promise<string> {
     );
     if (!res.ok) return did;
     const profile = await res.json();
-    return profile.handle ?? did;
+    const handle = profile.handle;
+    if (typeof handle !== "string" || handle === "handle.invalid") return did;
+    return handle;
   } catch {
     return did;
   }

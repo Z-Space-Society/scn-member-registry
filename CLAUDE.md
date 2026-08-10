@@ -21,18 +21,33 @@ working around it.
 - LiteLLM `user_id` **is** the member's DID. This is deliberate: it makes
   `/user/new` idempotent on retry, which is what makes approval safely
   repeatable without a transaction.
+- Handle and email are pushed onto the LiteLLM user (`user_alias`,
+  `user_email`) on every login, never stored here. atproto is authoritative;
+  the copy in LiteLLM is a display and notification convenience that
+  self-heals when either value changes upstream.
 
 ## Authority and trust
 
 - **Author-based verification.** Space records carry the authenticated user's
-  DID as author, always. Mint policy governs who can create repos in a space,
-  never whose name goes on records. Readers filter `listRecords` by `repo` to
-  the admin DID list and never read anything else.
+  DID as author, always — the runtime enforces it and there is no way to write
+  as someone else. Mint policy governs who can create repos in a space, never
+  whose name goes on records. Readers ignore any record whose author is not on
+  the admin roster.
 - **The registry space is admin-only.** Members are never space members, and
   member-facing code never reads the space directly. Members reach their own
-  data through Lua procedures that hold a space credential and scope by
-  `caller_did`. Admin writes are direct space writes under the admin's own
-  session; that is what author-based verification records.
+  data through Lua procedures that read the space in-process
+  (`atproto.spaces.*`, which performs no authorization of its own) and scope
+  every read to `caller_did` — the script is the access boundary. Admin writes
+  happen under the admin's own session; that is what author-based verification
+  records.
+- **Applications live in the applicant's own PDS**, as public indexed records
+  picked up from the firehose — never in the registry space. A non-member
+  cannot write to the space, and the record carries the bare assertion only:
+  no contact details, because it is world-readable.
+- **Grant and revocation rkeys are `{memberDid}:{tid}`.** Append-only means
+  rkeys must be unique per event, so keying on the DID alone collides on
+  re-grant. Encoding subject and time in the rkey also lets a listing resolve
+  the whole roll without fetching each record.
 - **The space authority is a service DID (did:plc), never a person's.**
   Authority is set at space creation and cannot be migrated. The rotation key
   can speak as the network and cannot be re-issued if lost; its custody is a
@@ -46,11 +61,15 @@ working around it.
 
 ## Secrets
 
-- The LiteLLM master key exists in exactly one place: HappyView Lua script
-  `env` variables. Never in browser code, never in a record, never in a
+- The gateway admin credential exists in exactly one place: HappyView Lua
+  script `env` variables. Never in browser code, never in a record, never in a
   lexicon.
+- That credential is a **revocable provisioner key** — a virtual key owned by
+  a `proxy_admin` service user — not the LiteLLM master key. The master key
+  stays offline as break-glass, so a compromised runtime costs one revocation
+  rather than a proxy-wide rotation.
 - The SPA holds a **public** API client key (`hvc_`) only. No client secret.
-- Any operation requiring the master key goes through a Lua procedure that
+- Any operation requiring the provisioner key goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record
   (`network.sharedcomputer.admin.list` in the service DID's repo, anchored by
   `env.SERVICE_DID`). Roster reads fail closed, with one exception: when no
@@ -69,13 +88,38 @@ working around it.
 |---|---|
 | Identity (DID, handle, email) | atproto / Rauthy |
 | Admin roster | `admin.list` record in the service DID's repo |
-| Application, grant, revocation | HappyView registry space |
-| Group definitions (tier to LiteLLM group mapping) | HappyView registry space |
+| Membership application | the applicant's own PDS |
+| Grant, revocation | HappyView registry space |
+| Tier definitions (models, limits) | LiteLLM teams |
 | Keys, budgets, spend counters | LiteLLM |
 | Inference | llama-server behind LiteLLM |
 
 Nothing is stored in two places. If a value appears to need duplicating,
-it belongs in one of them and the other should hold a reference.
+it belongs in one of them and the other should hold a reference. A grant
+records the team alias as it read at approval time for display, but LiteLLM
+holds the authoritative team membership.
+
+## Membership and tiers
+
+- **Tiers are LiteLLM teams.** An admin picks one at approval; model access
+  and per-member limits live on the team, so changing a tier is a LiteLLM-side
+  change and nothing here moves.
+- **Budgets belong to the LiteLLM user, not the key.** Members can issue their
+  own keys, so a cap on a key would be no cap at all.
+- **Approval mints no key.** A key's plaintext is returned once and would be
+  unrecoverable, so an auto-created key is a row the member can never use.
+  Members issue their own from the dashboard, where the secret appears once in
+  their own browser and never passes through an admin.
+
+## Rejected — do not re-propose
+
+- **A client-only app with no privileged layer.** `/key/generate` accepts
+  `user_id`, `models`, and `max_budget`; a browser holding a credential that
+  can call it is a browser holding proxy admin. The Lua procedures are the
+  privileged layer, and LiteLLM is the one leg that requires them.
+- **Members as registry space members.** They would gain a view of the
+  membership roll and a write surface, in exchange for nothing they cannot get
+  from a scoped procedure.
 
 ## Naming
 

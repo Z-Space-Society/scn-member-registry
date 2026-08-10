@@ -3,7 +3,9 @@ import {
   approveMember,
   listMembers,
   listRequests,
+  listTeams,
   type ApplicationRow,
+  type Team,
   type XrpcLike,
 } from "../membership";
 import {
@@ -62,7 +64,22 @@ function spacePanel(
   `;
 }
 
-function row(app: ApplicationRow, i: number, isMember: boolean): string {
+function teamSelect(teams: Team[], did: string): string {
+  if (teams.length === 0) return "";
+  const options = teams
+    .map((t) => `<option value="${esc(t.teamId)}">${esc(t.alias)}</option>`)
+    .join("");
+  return `<select class="gc-input" data-team-for="${esc(did)}" style="max-width: 11rem">
+            <option value="">(no team)</option>${options}
+          </select> `;
+}
+
+function row(
+  app: ApplicationRow,
+  i: number,
+  isMember: boolean,
+  teams: Team[]
+): string {
   return `
     <tr>
       <td><span id="handle-${i}" class="gc-mono">${esc(app.did)}</span></td>
@@ -71,7 +88,7 @@ function row(app: ApplicationRow, i: number, isMember: boolean): string {
       <td class="num">${
         isMember
           ? "<strong>MEMBER</strong>"
-          : `<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
+          : `${teamSelect(teams, app.did)}<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
       }</td>
     </tr>
   `;
@@ -153,7 +170,7 @@ export async function renderAdminView(
   content.innerHTML = `<div class="gc-col"><p>Loading applications...</p></div>`;
   const isServiceIdentity = Boolean(serviceDid && identity.did === serviceDid);
 
-  const [apps, roster, space, events] = await Promise.all([
+  const [apps, roster, space, events, teams] = await Promise.all([
     listRequests(xrpc).catch((e: Error) => e),
     rosterJustSaved
       ? Promise.resolve(rosterJustSaved)
@@ -168,6 +185,10 @@ export async function renderAdminView(
     listMembers(xrpc).catch((e: Error) => {
       console.warn("member lookup failed:", e);
       return null;
+    }),
+    listTeams(xrpc).catch((e: Error) => {
+      console.warn("team lookup failed:", e);
+      return [] as Team[];
     }),
   ]);
 
@@ -196,7 +217,7 @@ export async function renderAdminView(
                 : `<table class="gc-table">
                     <thead><tr><th>APPLICANT</th><th>DATE</th><th>NOTE</th><th class="num"></th></tr></thead>
                     <tbody>${apps
-                      .map((a, i) => row(a, i, Boolean(members?.has(a.did))))
+                      .map((a, i) => row(a, i, Boolean(members?.has(a.did)), teams))
                       .join("")}</tbody>
                   </table>`
             }
@@ -320,10 +341,14 @@ export async function renderAdminView(
     btn.addEventListener("click", async () => {
       const did = btn.dataset.approve!;
       const result = document.getElementById("admin-result")!;
+      const select = content.querySelector<HTMLSelectElement>(
+        `[data-team-for="${CSS.escape(did)}"]`
+      );
+      const team = teams.find((t) => t.teamId === select?.value);
       btn.disabled = true;
       result.textContent = `Approving ${did}...`;
       try {
-        await approveMember(xrpc, did);
+        await approveMember(xrpc, did, { team });
         renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
       } catch (e) {
         btn.disabled = false;

@@ -7,7 +7,7 @@ import {
   REGISTRY_TYPE,
 } from "../src/spaces";
 
-const SERVICE = "did:plc:n4mzxx6z4ehnswc7znswtfr2";
+const SERVICE = "did:plc:3pqm7ykwzr5hdvt2ncfx6jbe";
 const REGISTRY_URI = `ats://${SERVICE}/space/${REGISTRY_TYPE}/${REGISTRY_SKEY}`;
 
 describe("findRegistrySpace", () => {

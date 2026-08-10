@@ -9,6 +9,7 @@ import {
   type XrpcLike,
 } from "../membership";
 import { getRoster, isCurrentAdmin } from "../adminList";
+import { formatInt, getMyUsage, sortUsageRows, type Usage } from "../usage";
 import { esc, fmtDate, resolveHandle, type Identity } from "../shell";
 
 /** Whether the signed-in user should see the admin area link. */
@@ -103,12 +104,70 @@ function applyPanel(): string {
   `;
 }
 
-function placeholderPanels(): string {
+function usagePanel(): string {
   return `
     <section class="gc-panel">
-      <div class="gc-panel-title"><span>USAGE REPORT</span></div>
-      <div class="gc-construction"><span>UNDER CONSTRUCTION</span></div>
+      <div class="gc-panel-title"><span>USAGE REPORT</span><span id="usage-range" class="gc-mono text-[11px] text-[#99ccff]"></span></div>
+      <div class="gc-panel-body" id="usage-body"><p>Loading usage...</p></div>
     </section>
+  `;
+}
+
+function usageTable(usage: Usage): string {
+  const rows = sortUsageRows(usage.rows);
+  if (rows.length === 0) {
+    return `<p>No gateway usage recorded in this period.</p>`;
+  }
+  const cells = rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${esc(r.date)}</td>
+        <td>${r.model ? esc(r.model) : "<span class='gc-small'>(no model)</span>"}</td>
+        <td class="num">${formatInt(r.promptTokens)}</td>
+        <td class="num">${formatInt(r.completionTokens)}</td>
+        <td class="num">${formatInt(r.requests)}</td>
+      </tr>`
+    )
+    .join("");
+  const t = usage.totals;
+  return `
+    <table class="gc-table">
+      <thead>
+        <tr>
+          <th>DATE</th><th>MODEL</th>
+          <th class="num">IN TOKENS</th><th class="num">OUT TOKENS</th><th class="num">REQUESTS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${cells}
+        <tr>
+          <td colspan="2"><strong>TOTAL — ${rows.length} LINE${rows.length === 1 ? "" : "S"}</strong></td>
+          <td class="num"><strong>${formatInt(t.promptTokens)}</strong></td>
+          <td class="num"><strong>${formatInt(t.completionTokens)}</strong></td>
+          <td class="num"><strong>${formatInt(t.requests)}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+async function loadUsage(xrpc: XrpcLike) {
+  const body = document.getElementById("usage-body");
+  if (!body) return;
+  try {
+    const usage = await getMyUsage(xrpc);
+    body.innerHTML = usageTable(usage);
+    const range = document.getElementById("usage-range");
+    if (range) range.textContent = `${usage.startDate} → ${usage.endDate}`;
+  } catch (e) {
+    console.warn("usage lookup failed:", e);
+    body.innerHTML = `<p class="gc-small">Usage is unavailable right now.</p>`;
+  }
+}
+
+function keysPanel(): string {
+  return `
     <section class="gc-panel">
       <div class="gc-panel-title gc-panel-title--gray">API KEYS (for members who write their own tools)</div>
       <div class="gc-construction"><span>UNDER CONSTRUCTION</span></div>
@@ -144,7 +203,7 @@ export async function renderMemberView(
       `<p class="gc-small">Membership status is unknown right now (the status service did not respond).</p>`
     );
   }
-  if (state.kind === "active") main.push(placeholderPanels());
+  if (state.kind === "active") main.push(usagePanel(), keysPanel());
 
   content.innerHTML = `
     <div class="gc-col">${main.join("")}</div>
@@ -154,6 +213,8 @@ export async function renderMemberView(
       <p class="text-center m-0"><button id="signout" class="gc-btn">SIGN OUT</button></p>
     </aside>
   `;
+
+  if (state.kind === "active") loadUsage(xrpc);
 
   showAdminLink(identity, serviceDid).then((show) => {
     const slot = document.getElementById("admin-link");

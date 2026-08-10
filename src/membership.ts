@@ -1,3 +1,4 @@
+import { assertDid } from "./did";
 import { NSID } from "./lexicons";
 import { pdsGetRecord } from "./pds";
 import { resolveMembership } from "./rkey";
@@ -82,9 +83,9 @@ export interface ApplicationRow {
 
 /** Extracts the repo DID from an at:// record uri. Throws on garbage. */
 export function didFromUri(uri: string): string {
-  const m = /^at:\/\/(did:[^/]+)\//.exec(uri);
+  const m = /^at:\/\/([^/]+)\//.exec(uri);
   if (!m) throw new Error(`not a record uri: ${uri}`);
-  return m[1];
+  return assertDid(m[1]);
 }
 
 /** Lists membership applications from the index (public records). */
@@ -141,14 +142,60 @@ export function activeMembers(
   );
 }
 
+export interface ProfileSync {
+  email?: string;
+  handle?: string;
+}
+
+/**
+ * Refreshes the member's handle and email on their LiteLLM user.
+ */
+export async function syncProfile(
+  xrpc: XrpcLike,
+  profile: ProfileSync
+): Promise<boolean> {
+  const input: Record<string, string> = {};
+  if (profile.email) input.email = profile.email;
+  if (profile.handle) input.handle = profile.handle;
+  if (Object.keys(input).length === 0) return false;
+
+  try {
+    const res = await xrpc.call(NSID.syncProfile, undefined, input);
+    return Boolean(res.data?.ok);
+  } catch (e) {
+    console.warn("profile sync failed:", e);
+    return false;
+  }
+}
+
+export interface Team {
+  teamId: string;
+  alias: string;
+}
+
+/** LiteLLM teams available as membership tiers. */
+export async function listTeams(xrpc: XrpcLike): Promise<Team[]> {
+  const res = await xrpc.call(NSID.listTeams);
+  return res.data.teams ?? [];
+}
+
+export interface ApproveOptions {
+  team?: Team;
+  email?: string;
+}
+
 /** Approves a member: roster-gated Lua procedure, grant authored by caller. */
 export async function approveMember(
   xrpc: XrpcLike,
   did: string,
-  group?: string
+  options: ApproveOptions = {}
 ): Promise<{ ok: boolean; uri?: string }> {
   const input: Record<string, unknown> = { did };
-  if (group) input.group = group;
+  if (options.team) {
+    input.teamId = options.team.teamId;
+    input.teamLabel = options.team.alias;
+  }
+  if (options.email) input.email = options.email;
   const res = await xrpc.call(NSID.approveMember, undefined, input);
   return res.data;
 }

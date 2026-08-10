@@ -6,7 +6,7 @@ import {
   tidNow,
 } from "../src/rkey";
 
-const PLC = "did:plc:tmxbvcho3zysvtadtextctxw";
+const PLC = "did:plc:kzvv6h2tqf4mdxr7wsc3ubna";
 const WEB = "did:web:view.sharedcomputer.network";
 
 describe("tidNow", () => {
@@ -34,7 +34,7 @@ describe("eventRkey / parseEventRkey", () => {
   });
 
   it("rejects a non-DID subject", () => {
-    expect(() => eventRkey("hadsie.com")).toThrow(/not a DID/);
+    expect(() => eventRkey("alice.example.com")).toThrow(/not a DID/);
   });
 
   it("rejects a malformed TID", () => {

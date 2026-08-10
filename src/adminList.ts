@@ -1,3 +1,4 @@
+import { assertDid, isDid } from "./did";
 import { NSID } from "./lexicons";
 import { pdsGetRecord } from "./pds";
 import type { XrpcLike } from "./membership";
@@ -34,11 +35,7 @@ export function parseAdminEntries(value: unknown): AdminEntry[] {
   }
   return record.admins.map((raw) => {
     const entry = raw as AdminEntry;
-    if (
-      typeof entry?.did !== "string" ||
-      !entry.did.startsWith("did:") ||
-      typeof entry.addedAt !== "string"
-    ) {
+    if (!isDid(entry?.did) || typeof entry.addedAt !== "string") {
       throw new Error(`malformed admin entry: ${JSON.stringify(raw)}`);
     }
     return entry;
@@ -106,7 +103,7 @@ export function withAdminAdded(
   did: string,
   addedAt: string
 ): AdminEntry[] {
-  if (!did.startsWith("did:")) throw new Error(`not a DID: ${did}`);
+  assertDid(did);
   if (entries.some((e) => e.did === did && !e.removedAt)) {
     throw new Error(`already a current admin: ${did}`);
   }

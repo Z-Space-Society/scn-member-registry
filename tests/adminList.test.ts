@@ -11,7 +11,7 @@ import {
 } from "../src/adminList";
 import { NSID } from "../src/lexicons";
 
-const A = "did:plc:tmxbvcho3zysvtadtextctxw";
+const A = "did:plc:kzvv6h2tqf4mdxr7wsc3ubna";
 const B = "did:web:example.com";
 
 describe("parseAdminList", () => {
@@ -53,7 +53,7 @@ describe("parseAdminList", () => {
 
   it("throws on an entry with a non-DID subject", () => {
     expect(() =>
-      parseAdminList({ admins: [{ did: "hadsie.com", addedAt: "x" }] })
+      parseAdminList({ admins: [{ did: "alice.example.com", addedAt: "x" }] })
     ).toThrow(/malformed admin entry/);
   });
 
@@ -102,7 +102,7 @@ describe("withAdminAdded", () => {
   });
 
   it("rejects a non-DID", () => {
-    expect(() => withAdminAdded([], "hadsie.com", now)).toThrow(/not a DID/);
+    expect(() => withAdminAdded([], "alice.example.com", now)).toThrow(/not a DID/);
   });
 });
 

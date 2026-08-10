@@ -51,24 +51,69 @@ function handle()
 
   require_current_admin(caller_did)
 
+  -- Validate the DID structure. It becomes a LiteLLM user_id and part of
+  -- a space record rkey.
   local subject = input.did
-  if type(subject) ~= "string" or string.sub(subject, 1, 4) ~= "did:" then
+  if type(subject) ~= "string"
+    or #subject > 512
+    or not string.find(subject, "^did:[a-z]+:[%w%._:%%%-]+$")
+  then
     error("invalid input: did")
   end
 
-  -- Provision the LiteLLM user. user_id = DID makes this retryable: an
-  -- "already exists" response is success, anything else fails loudly.
-  local ok, res = pcall(http.post, env.LITELLM_BASE_URL .. "/user/new", {
-    headers = {
-      Authorization = "Bearer " .. env.LITELLM_PROVISIONER_KEY,
-      ["Content-Type"] = "application/json",
-    },
-    body = json.encode({ user_id = subject }),
-  })
-  if not ok then
-    log("approveMember: egress failure reaching LiteLLM")
-    error("litellm unreachable")
+  -- Same shape check syncProfile applies, so an admin cannot push junk into
+  -- the gateway's notification field.
+  local email = nil
+  if input.email ~= nil and input.email ~= "" then
+    if type(input.email) ~= "string"
+      or #input.email > 320
+      or string.find(input.email, "%s")
+      or not string.find(input.email, "^[^@]+@[^@]+%.[^@]+$")
+    then
+      error("invalid input: email")
+    end
+    email = input.email
   end
+
+  local team_id = nil
+  if input.teamId ~= nil and input.teamId ~= "" then
+    if type(input.teamId) ~= "string" or #input.teamId > 128 then
+      error("invalid input: teamId")
+    end
+    team_id = input.teamId
+  end
+
+  local team_label = nil
+  if input.teamLabel ~= nil and input.teamLabel ~= "" then
+    if type(input.teamLabel) ~= "string" or #input.teamLabel > 200 then
+      error("invalid input: teamLabel")
+    end
+    team_label = input.teamLabel
+  end
+
+  local function gateway(path, payload)
+    local ok, res = pcall(http.post, env.LITELLM_BASE_URL .. path, {
+      headers = {
+        Authorization = "Bearer " .. env.LITELLM_PROVISIONER_KEY,
+        ["Content-Type"] = "application/json",
+      },
+      body = json.encode(payload),
+    })
+    if not ok then
+      log("approveMember: egress failure reaching LiteLLM")
+      error("litellm unreachable")
+    end
+    return res
+  end
+
+  -- Provision the LiteLLM user. user_id = DID. an "already exists"
+  -- response is success, anything else fails.
+  local new_user = { user_id = subject, auto_create_key = false }
+  if email then
+    new_user.user_email = email
+  end
+
+  local res = gateway("/user/new", new_user)
   if res.status ~= 200 then
     local exists = string.find(res.body or "", "already exist", 1, true)
     if not exists then
@@ -77,14 +122,38 @@ function handle()
     end
   end
 
+  if team_id then
+    local member = { user_id = subject, role = "user" }
+    if email then
+      member.user_email = email
+    end
+    local team_res = gateway("/team/member_add", {
+      team_id = team_id,
+      member = member,
+    })
+    if team_res.status ~= 200 then
+      local already = string.find(team_res.body or "", "already", 1, true)
+      if not already then
+        log("approveMember: /team/member_add failed with status "
+          .. tostring(team_res.status))
+        error("litellm team assignment failed")
+      end
+    end
+  end
+
   local space = atproto.spaces.get(env.REGISTRY_SPACE_URI)
   local rkey = subject .. ":" .. tostring(TID())
+  -- `groups` records the tier as it was named at approval time; LiteLLM
+  -- is the source of truth for team membership.
   local grant = {
     status = "active",
     litellmUserId = subject,
     grantedAt = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-    groups = toarray(input.group and { input.group } or {}),
+    groups = toarray(team_label and { team_label } or {}),
   }
+  if team_id then
+    grant.litellmTeamId = team_id
+  end
 
   local wrote = space:put_record{
     collection = "network.sharedcomputer.membership.grant",

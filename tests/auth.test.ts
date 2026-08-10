@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initSession, type OauthClientLike } from "../src/auth";
 
-const SESSION = { did: "did:plc:tmxbvcho3zysvtadtextctxw" } as any;
+const SESSION = { did: "did:plc:kzvv6h2tqf4mdxr7wsc3ubna" } as any;
 
 function fakeClient(init: () => Promise<any>): OauthClientLike {
   return { init, signIn: async () => undefined, logout: async () => undefined };

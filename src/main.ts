@@ -6,7 +6,8 @@ import { allLexicons } from "./lexicons";
 import { renderShell, probeLamps, resolveHandle, type Identity } from "./shell";
 import { renderMemberView, renderSignInView } from "./views/member";
 import { renderAdminView } from "./views/admin";
-import type { XrpcLike } from "./membership";
+import { syncProfile, type XrpcLike } from "./membership";
+import { fetchAccountEmail } from "./pds";
 
 const cfg = loadConfig(import.meta.env);
 const oauthClient = createOauthClient(cfg);
@@ -53,6 +54,7 @@ if (session) {
 renderShell(root, identity);
 probeLamps(cfg);
 route(xrpc, identity, callbackError);
+
 window.addEventListener("hashchange", () => route(xrpc, identity));
 
 /**
@@ -73,13 +75,22 @@ document.body.addEventListener("click", async (e) => {
   location.reload();
 });
 
-if (identity) {
-  resolveHandle(identity.did).then((handle) => {
-    if (handle !== identity!.did) {
-      identity!.handle = handle;
-      renderShell(root, identity);
+if (session && identity && xrpc) {
+  const resolved = identity;
+  const client = xrpc;
+
+  resolveHandle(resolved.did).then(async (handle) => {
+    const known = handle !== resolved.did ? handle : undefined;
+    if (known) {
+      resolved.handle = known;
+      renderShell(root, resolved);
       probeLamps(cfg);
-      route(xrpc, identity);
+      route(client, resolved);
     }
+    // Keep the member's display details current on their LiteLLM user.
+    // atproto is authoritative, so this re-syncs on every login and is
+    // best effort throughout: nothing here may disturb the dashboard.
+    const email = (await fetchAccountEmail(session)) ?? undefined;
+    syncProfile(client, { handle: known, email });
   });
 }

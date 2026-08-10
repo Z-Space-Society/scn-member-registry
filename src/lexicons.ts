@@ -11,9 +11,12 @@ export const NSID = {
   withdrawRequest: "network.sharedcomputer.membership.withdrawRequest",
   listRequests: "network.sharedcomputer.membership.listRequests",
   listMembers: "network.sharedcomputer.membership.listMembers",
+  getMyUsage: "network.sharedcomputer.membership.getMyUsage",
+  syncProfile: "network.sharedcomputer.membership.syncProfile",
   approveMember: "network.sharedcomputer.admin.approveMember",
   setRoster: "network.sharedcomputer.admin.setRoster",
   setSpaceAccess: "network.sharedcomputer.admin.setSpaceAccess",
+  listTeams: "network.sharedcomputer.admin.listTeams",
   grant: "network.sharedcomputer.membership.grant",
   revocation: "network.sharedcomputer.membership.revocation",
   group: "network.sharedcomputer.group",
@@ -99,11 +102,14 @@ export const scnLexicons = [
   query(NSID.gatewayHealth),
   query(NSID.listRequests, { limit: "integer", cursor: "string" }),
   query(NSID.listMembers),
+  query(NSID.getMyUsage, { startDate: "string", endDate: "string" }),
+  query(NSID.listTeams),
   proc(NSID.submitRequest),
   proc(NSID.withdrawRequest),
   proc(NSID.approveMember),
   proc(NSID.setRoster),
   proc(NSID.setSpaceAccess),
+  proc(NSID.syncProfile),
 ];
 
 export const allLexicons = [...repoLexicons, ...spaceLexicons, ...scnLexicons];

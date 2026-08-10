@@ -8,14 +8,16 @@ import {
   getMyMembership,
   getMyRequest,
   listRequests,
+  listTeams,
   submitRequest,
+  syncProfile,
   withdrawRequest,
   type Membership,
   type XrpcLike,
 } from "../src/membership";
 import { NSID } from "../src/lexicons";
 
-const DID = "did:plc:tmxbvcho3zysvtadtextctxw";
+const DID = "did:plc:kzvv6h2tqf4mdxr7wsc3ubna";
 
 function fakeXrpc(impl: (nsid: string, params?: any, data?: any) => any): XrpcLike & {
   call: ReturnType<typeof vi.fn>;
@@ -190,20 +192,45 @@ describe("listMembers", () => {
 });
 
 describe("approveMember", () => {
-  it("passes the subject did and optional group to the procedure", async () => {
+  const team = { teamId: "t-1", alias: "ZAI Standard" };
+
+  it("sends the team id for LiteLLM and the alias for the grant record", async () => {
     const xrpc = fakeXrpc(() => ({ ok: true, uri: "ats://x" }));
-    const res = await approveMember(xrpc, DID, "standard");
+    const res = await approveMember(xrpc, DID, { team });
     expect(res.ok).toBe(true);
     expect(xrpc.call).toHaveBeenCalledWith(NSID.approveMember, undefined, {
       did: DID,
-      group: "standard",
+      teamId: "t-1",
+      teamLabel: "ZAI Standard",
     });
   });
 
-  it("omits group when not given", async () => {
+  it("includes an email when given", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    await approveMember(xrpc, DID, { email: "a@example.com" });
+    expect(xrpc.call.mock.calls[0][2]).toEqual({
+      did: DID,
+      email: "a@example.com",
+    });
+  });
+
+  it("sends only the did when no team or email is chosen", async () => {
     const xrpc = fakeXrpc(() => ({ ok: true }));
     await approveMember(xrpc, DID);
     expect(xrpc.call.mock.calls[0][2]).toEqual({ did: DID });
+  });
+});
+
+describe("listTeams", () => {
+  it("returns the teams array", async () => {
+    const teams = [{ teamId: "t-1", alias: "ZAI Standard" }];
+    const xrpc = fakeXrpc(() => ({ teams }));
+    expect(await listTeams(xrpc)).toEqual(teams);
+  });
+
+  it("defaults to empty when the field is missing", async () => {
+    const xrpc = fakeXrpc(() => ({}));
+    expect(await listTeams(xrpc)).toEqual([]);
   });
 });
 
@@ -241,5 +268,39 @@ describe("deriveMemberState", () => {
   it("yields unknown with the application preserved when the lookup fails", () => {
     const state = deriveMemberState(request, new Error("boom"));
     expect(state).toEqual({ kind: "unknown", request, error: "boom" });
+  });
+});
+
+describe("syncProfile", () => {
+  it("sends handle and email together", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    expect(
+      await syncProfile(xrpc, { handle: "atproto.example.com", email: "a@example.com" })
+    ).toBe(true);
+    expect(xrpc.call).toHaveBeenCalledWith(NSID.syncProfile, undefined, {
+      handle: "atproto.example.com",
+      email: "a@example.com",
+    });
+  });
+
+  it("omits whichever value is missing", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    await syncProfile(xrpc, { handle: "atproto.example.com" });
+    expect(xrpc.call.mock.calls[0][2]).toEqual({ handle: "atproto.example.com" });
+  });
+
+  it("does not call the procedure when there is nothing to send", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    expect(await syncProfile(xrpc, {})).toBe(false);
+    expect(xrpc.call).not.toHaveBeenCalled();
+  });
+
+  it("swallows failures so the dashboard is unaffected", async () => {
+    const xrpc: XrpcLike = {
+      call: async () => {
+        throw new Error("gateway down");
+      },
+    };
+    expect(await syncProfile(xrpc, { handle: "atproto.example.com" })).toBe(false);
   });
 });

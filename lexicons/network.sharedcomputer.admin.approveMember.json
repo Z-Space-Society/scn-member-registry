@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Approve a membership application. Caller must be a current admin in the roster. Provisions the LiteLLM user (idempotent: user_id is the DID) and writes the grant to the registry space, authored by the calling admin.",
+      "description": "Approve a membership application. Caller must be a current admin in the roster. Provisions the LiteLLM user (idempotent: user_id is the DID), and writes the grant to the registry space authored by the calling admin.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -12,7 +12,20 @@
           "required": ["did"],
           "properties": {
             "did": { "type": "string", "format": "did" },
-            "group": { "type": "string" }
+            "teamId": {
+              "type": "string",
+              "description": "LiteLLM team ID."
+            },
+            "teamLabel": {
+              "type": "string",
+              "description": "Team alias, recorded on the grant for display.",
+              "maxLength": 200
+            },
+            "email": {
+              "type": "string",
+              "description": "Optional contact email for the LiteLLM user.",
+              "maxLength": 320
+            }
           }
         }
       },

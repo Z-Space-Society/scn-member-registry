@@ -27,7 +27,7 @@ function route(
     return;
   }
   if (location.hash === "#admin") {
-    renderAdminView(content, xrpc, identity, cfg.serviceDid);
+    renderAdminView(content, xrpc, identity, cfg.serviceDid, cfg.registrySpaceUri);
   } else {
     renderMemberView(content, xrpc, identity, cfg.serviceDid);
   }
@@ -55,12 +55,22 @@ probeLamps(cfg);
 route(xrpc, identity, callbackError);
 window.addEventListener("hashchange", () => route(xrpc, identity));
 
+/**
+ * Signing out must always work locally. The SDK throws before clearing
+ * storage if the server rejects the session — which it does for a session
+ * minted against an API client that no longer exists — so a failure there
+ * would otherwise trap the user in a session they cannot leave.
+ */
 document.body.addEventListener("click", async (e) => {
-  if ((e.target as HTMLElement).id === "signout" && identity) {
+  if ((e.target as HTMLElement).id !== "signout" || !identity) return;
+  try {
     await oauthClient.logout(identity.did);
-    location.hash = "";
-    location.reload();
+  } catch (err) {
+    console.warn("server-side sign-out failed; clearing local session:", err);
+    localStorage.clear();
   }
+  location.hash = "";
+  location.reload();
 });
 
 if (identity) {

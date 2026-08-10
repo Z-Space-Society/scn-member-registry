@@ -1,14 +1,62 @@
 # scn-manage
 
-Membership SPA for Shared Computer Network.
+Membership SPA for Shared Computer Network. See HANDOVER.md for
+design decisions, LEARNINGS.md for HappyView behavior, CLAUDE.md for
+architecture invariants.
 
-## Development
+## Setup
+
+Two steps happen in the HappyView dashboard because they mint credentials
+that cannot bootstrap themselves. Everything after that is scripted.
+
+**1. In the HappyView dashboard**
+
+- Create an **admin API key** (`hv_…`) with permissions for lexicons,
+  scripts, script variables, settings, and backfill.
+- Create an **API client key** for this app:
+ - **Type:** Public
+ - **Client ID URI:** `http://127.0.0.1:5173/oauth/callback`
+ - **Client URI:** `http://127.0.0.1:5173`
+ - **Redirect URIs:** Whatever is set in `VITE_OAUTH_REDIRECT_URI`. Default `http://127.0.0.1:5173/oauth/callback`.
+ - **Scopes:** Identical to `VITE_OAUTH_SCOPE` in your `.env`.
+
+ Copy the `hvc_...` key into `VITE_HV_CLIENT_KEY` after it's created.
+
+**2. Configure and provision**
 
 ```sh
-cp .env.example .env   # fill in the hvc_ client key
+cp .env.example .env    # fill in both keys, the service DID, and LiteLLM values
 npm install
+npm run deploy
+```
+
+`npm run deploy` enables the spaces feature flag, uploads every lexicon with
+its endpoint config, attaches the Lua scripts, and pushes the script
+variables. It reads `.env` (shell variables win over the file), skips
+variables that are not set, and every write is an upsert, so re-running is
+safe. `--dry-run` lists what it would do.
+
+**3. Bootstrap the registry**
+
+```sh
 npm run dev
 ```
+
+- Sign in at `http://127.0.0.1:5173` as the **service identity** — the DID in
+  `VITE_SERVICE_DID`. Its repo anchors the admin roster, and it becomes the
+  registry space's permanent authority.
+- On `#admin`: **CREATE REGISTRY SPACE**, then copy the resulting uri into
+  `VITE_REGISTRY_SPACE_URI` in `.env` and re-run `npm run deploy` so the Lua
+  scripts can read it.
+- Still on `#admin`: **CREATE ROSTER WITH ME ON IT**, then **ADD ADMIN** for
+  each admin DID. Adding an admin writes the roster entry and grants registry
+  space write access in one action.
+- Sign in as an admin to approve applications.
+
+Backfill the `membership.request` and `admin.list` collections from the
+dashboard if the index needs to catch up on records written before setup.
+
+## Development
 
 Open `http://127.0.0.1:5173` — the loopback IP, not `localhost`, and not a
 custom hosts entry: the OAuth redirect URI must match exactly, and Web Crypto
@@ -20,28 +68,17 @@ modules on loopback otherwise.
 ## Layout
 
 - `src/` — SPA source. `tests/` mirrors it.
-- `lexicons/` — lexicon JSON, uploaded to the HappyView instance.
-- `lua/` — HappyView Lua scripts, deployed via the Admin API. Script env vars
-  (`LITELLM_MASTER_KEY`, `SERVICE_DID`, ...) are set in the HappyView
-  dashboard, never committed here.
+- `lexicons/` — lexicon JSON, uploaded by the deploy script.
+- `lua/` — HappyView Lua scripts, attached by the deploy script. The manifest
+  at the top of `scripts/deploy.mjs` maps scripts to lexicons and carries the
+  endpoint config (`target_collection`, `action`) the dashboard cannot set.
 - `mockup/` — design concept, not a spec.
+
+Only `VITE_`-prefixed variables reach the browser. Secrets in `.env` are read
+by the deploy script alone and are never bundled.
 
 ## Testing
 
 ```sh
 npm test
 ```
-
-## Deploying lexicons and scripts
-
-`scripts/deploy.mjs` pushes every lexicon, its Lua script, and the endpoint
-config the dashboard cannot set (`target_collection`, `action`) to a HappyView
-instance. Script variables are read from the environment and pushed only when
-set locally. Every write is an upsert, so re-running is safe.
-
-```sh
-HAPPYVIEW_URL=http://127.0.0.1:3000 HAPPYVIEW_API_KEY=hv_... npm run deploy
-```
-
-Pass `--dry-run` to list what would be written. The manifest at the top of the
-script is the source of truth for which script backs which NSID.

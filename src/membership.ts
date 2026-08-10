@@ -1,5 +1,6 @@
 import { NSID } from "./lexicons";
 import { pdsGetRecord } from "./pds";
+import { resolveMembership } from "./rkey";
 
 /**
  * The membership application is a public record in the applicant's own PDS
@@ -100,6 +101,44 @@ export async function listRequests(
     createdAt: r.createdAt,
     note: r.note,
   }));
+}
+
+export interface MembershipEvent {
+  rkey: string;
+  authorDid: string;
+}
+
+export interface MembershipEvents {
+  grants: MembershipEvent[];
+  revocations: MembershipEvent[];
+}
+
+/** Grant and revocation events from the registry space. Admin-only. */
+export async function listMembers(xrpc: XrpcLike): Promise<MembershipEvents> {
+  const res = await xrpc.call(NSID.listMembers);
+  return {
+    grants: res.data.grants ?? [],
+    revocations: res.data.revocations ?? [],
+  };
+}
+
+/**
+ * Resolves which DIDs are currently members. Events authored by anyone who
+ * is not (or was not) an admin are ignored.
+ */
+export function activeMembers(
+  events: MembershipEvents,
+  everAdmins: Iterable<string>
+): Set<string> {
+  const admins = new Set(everAdmins);
+  const byAdmin = (e: MembershipEvent) => admins.has(e.authorDid);
+  const state = resolveMembership(
+    events.grants.filter(byAdmin).map((e) => e.rkey),
+    events.revocations.filter(byAdmin).map((e) => e.rkey)
+  );
+  return new Set(
+    [...state.entries()].filter(([, s]) => s.active).map(([did]) => did)
+  );
 }
 
 /** Approves a member: roster-gated Lua procedure, grant authored by caller. */

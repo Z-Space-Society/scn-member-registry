@@ -15,6 +15,27 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Loads .env into process.env without overwriting values already set, so a
+ * shell export or CI secret still wins over the file.
+ */
+async function loadDotEnv(path) {
+  let text;
+  try {
+    text = await readFile(path, "utf8");
+  } catch {
+    return;
+  }
+  for (const line of text.split("\n")) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match || line.trimStart().startsWith("#")) continue;
+    const value = match[2].trim().replace(/^["'](.*)["']$/, "$1");
+    if (!(match[1] in process.env)) process.env[match[1]] = value;
+  }
+}
+
+await loadDotEnv(join(ROOT, ".env"));
 const REQUEST_COLLECTION = "network.sharedcomputer.membership.request";
 const ADMIN_LIST_COLLECTION = "network.sharedcomputer.admin.list";
 
@@ -44,26 +65,39 @@ const MANIFEST = [
   { file: "network.sharedcomputer.admin.gatewayHealth.json", script: "gateway_health.lua" },
   { file: "network.sharedcomputer.admin.whoami.json", script: "whoami.lua" },
   { file: "network.sharedcomputer.membership.listRequests.json", script: "list_requests.lua" },
+  { file: "network.sharedcomputer.membership.listMembers.json", script: "list_members.lua" },
   { file: "network.sharedcomputer.membership.getMine.json", script: "get_my_membership.lua" },
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
   { file: "network.sharedcomputer.admin.setSpaceAccess.json", script: "set_space_access.lua" },
 ];
 
-/** Script variables to push, read from the environment. */
+/**
+ * Script variables to push. Read from .env or the shell; anything unset is
+ * skipped, so an early deploy before the space exists is fine. The public
+ * VITE_ twins are accepted as fallbacks for the values that appear in both
+ * places, so they only need writing down once.
+ */
 const VARIABLES = [
-  "LITELLM_BASE_URL",
-  "LITELLM_PROVISIONER_KEY",
-  "SERVICE_DID",
-  "BOOTSTRAP_ADMIN_DID",
-  "REGISTRY_SPACE_URI",
+  { key: "LITELLM_BASE_URL" },
+  { key: "LITELLM_PROVISIONER_KEY" },
+  { key: "SERVICE_DID", fallback: "VITE_SERVICE_DID" },
+  { key: "BOOTSTRAP_ADMIN_DID" },
+  { key: "REGISTRY_SPACE_URI", fallback: "VITE_REGISTRY_SPACE_URI" },
 ];
 
-const baseUrl = (process.env.HAPPYVIEW_URL ?? "").replace(/\/$/, "");
+const baseUrl = (
+  process.env.HAPPYVIEW_URL ??
+  process.env.VITE_HAPPYVIEW_URL ??
+  ""
+).replace(/\/$/, "");
 const apiKey = process.env.HAPPYVIEW_API_KEY;
 const dryRun = process.argv.includes("--dry-run");
 
 if (!baseUrl || !apiKey) {
-  console.error("HAPPYVIEW_URL and HAPPYVIEW_API_KEY are required");
+  console.error(
+    "Missing config. Set HAPPYVIEW_API_KEY (and HAPPYVIEW_URL or\n" +
+      "VITE_HAPPYVIEW_URL) in .env — see .env.example."
+  );
   process.exit(1);
 }
 
@@ -132,8 +166,8 @@ for (const entry of MANIFEST) {
   }
 }
 
-for (const key of VARIABLES) {
-  const value = process.env[key];
+for (const { key, fallback } of VARIABLES) {
+  const value = process.env[key] ?? (fallback ? process.env[fallback] : undefined);
   if (!value) {
     console.log(`${key}: not set locally, skipped`);
     continue;

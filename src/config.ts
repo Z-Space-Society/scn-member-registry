@@ -10,6 +10,10 @@ export interface Config {
    * optional because it does not exist until the identity is set up.
    */
   serviceDid?: string;
+  /**
+   * The registry space uri. Saved after the space is created.
+   */
+  registrySpaceUri?: string;
 }
 
 const REQUIRED = [
@@ -43,5 +47,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     oauthScope,
     clientId,
     serviceDid: env.VITE_SERVICE_DID || undefined,
+    registrySpaceUri: env.VITE_REGISTRY_SPACE_URI || undefined,
   };
 }

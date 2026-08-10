@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.listMembers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Grant and revocation events from the registry space, for resolving who is currently a member. Admin-only: the membership roll is not member-visible.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["grants", "revocations"],
+          "properties": {
+            "grants": { "type": "array", "items": { "type": "unknown" } },
+            "revocations": { "type": "array", "items": { "type": "unknown" } }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  activeMembers,
   approveMember,
   deriveMemberState,
+  listMembers,
   didFromUri,
   getMyMembership,
   getMyRequest,
@@ -132,6 +134,58 @@ describe("listRequests", () => {
   it("returns empty for an empty index", async () => {
     const xrpc = fakeXrpc(() => ({ requests: [] }));
     expect(await listRequests(xrpc)).toEqual([]);
+  });
+});
+
+describe("activeMembers", () => {
+  const ADMIN = "did:plc:admin";
+  const OUTSIDER = "did:plc:outsider";
+  const t1 = "3mrqo575gjaaa";
+  const t2 = "3mrqo575gjbbb";
+
+  it("returns DIDs with an admin-authored grant", () => {
+    const events = {
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN])).toEqual(new Set([DID]));
+  });
+
+  it("excludes a DID whose latest event is a revocation", () => {
+    const events = {
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
+      revocations: [{ rkey: `${DID}:${t2}`, authorDid: ADMIN }],
+    };
+    expect(activeMembers(events, [ADMIN])).toEqual(new Set());
+  });
+
+  it("ignores grants authored by someone who was never an admin", () => {
+    const events = {
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: OUTSIDER }],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN])).toEqual(new Set());
+  });
+
+  it("honors grants from a departed admin", () => {
+    const events = {
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN])).toEqual(new Set([DID]));
+  });
+
+  it("returns empty for no events", () => {
+    expect(activeMembers({ grants: [], revocations: [] }, [ADMIN])).toEqual(
+      new Set()
+    );
+  });
+});
+
+describe("listMembers", () => {
+  it("defaults missing arrays to empty", async () => {
+    const xrpc = fakeXrpc(() => ({}));
+    expect(await listMembers(xrpc)).toEqual({ grants: [], revocations: [] });
   });
 });
 

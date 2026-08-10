@@ -1,5 +1,7 @@
 import {
+  activeMembers,
   approveMember,
+  listMembers,
   listRequests,
   type ApplicationRow,
   type XrpcLike,
@@ -13,17 +15,64 @@ import {
   withAdminRemoved,
   type AdminEntry,
 } from "../adminList";
+import {
+  createRegistrySpace,
+  findRegistrySpace,
+  listSpaces,
+} from "../spaces";
 import { esc, fmtDate, resolveHandle, type Identity } from "../shell";
 
-function row(app: ApplicationRow, i: number): string {
+/**
+ * Space setup panel, shown only to the service identity.
+ */
+function spacePanel(
+  uri: string | null | Error,
+  configured?: string
+): string {
+  let body: string;
+  if (uri instanceof Error) {
+    body = `<p class="gc-error">Could not list spaces: <code>${esc(uri.message)}</code></p>
+            <p class="gc-small">If this says the spaces feature is disabled, run <code>npm run deploy</code>.</p>`;
+  } else if (uri) {
+    const matches = configured === uri;
+    body = `
+      <p>Registry space exists:</p>
+      <p><code class="gc-mono">${esc(uri)}</code></p>
+      ${
+        matches
+          ? `<p class="gc-small">Matches your configured REGISTRY_SPACE_URI.</p>`
+          : `<p class="gc-error">Not yet configured. Put this in .env as
+             <code>VITE_REGISTRY_SPACE_URI</code> and run <code>npm run deploy</code>
+             so the Lua scripts can read it.</p>`
+      }
+    `;
+  } else {
+    body = `
+      <p>No registry space yet. Creating it fixes this identity as its
+      authority permanently — the space cannot be migrated later.</p>
+      <button id="create-space" class="gc-btn">CREATE REGISTRY SPACE</button>
+      <span id="space-error" class="gc-error"></span>
+    `;
+  }
+  return `
+    <section class="gc-panel">
+      <div class="gc-panel-title"><span>REGISTRY SPACE</span></div>
+      <div class="gc-panel-body">${body}</div>
+    </section>
+  `;
+}
+
+function row(app: ApplicationRow, i: number, isMember: boolean): string {
   return `
     <tr>
       <td><span id="handle-${i}" class="gc-mono">${esc(app.did)}</span></td>
       <td>${fmtDate(app.createdAt)}</td>
       <td>${app.note ? esc(app.note) : "<span class='gc-small'>(no note)</span>"}</td>
-      <td class="num">
-        <button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>
-      </td>
+      <td class="num">${
+        isMember
+          ? "<strong>MEMBER</strong>"
+          : `<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
+      }</td>
     </tr>
   `;
 }
@@ -98,18 +147,36 @@ export async function renderAdminView(
   xrpc: XrpcLike,
   identity: Identity,
   serviceDid?: string,
+  registrySpaceUri?: string,
   rosterJustSaved?: AdminEntry[]
 ) {
   content.innerHTML = `<div class="gc-col"><p>Loading applications...</p></div>`;
+  const isServiceIdentity = Boolean(serviceDid && identity.did === serviceDid);
 
-  const [apps, roster] = await Promise.all([
+  const [apps, roster, space, events] = await Promise.all([
     listRequests(xrpc).catch((e: Error) => e),
     rosterJustSaved
       ? Promise.resolve(rosterJustSaved)
       : serviceDid
         ? getRoster(serviceDid).catch((e: Error) => e)
         : Promise.resolve(null),
+    isServiceIdentity
+      ? listSpaces(xrpc, identity.did)
+          .then(findRegistrySpace)
+          .catch((e: Error) => e)
+      : Promise.resolve(null),
+    listMembers(xrpc).catch((e: Error) => {
+      console.warn("member lookup failed:", e);
+      return null;
+    }),
   ]);
+
+  // Applicants already granted membership; null means the lookup failed, in
+  // which case every row keeps its APPROVE button (approval is idempotent).
+  const members =
+    events && Array.isArray(roster)
+      ? activeMembers(events, roster.map((e) => e.did))
+      : null;
 
   const appsPanel =
     apps instanceof Error
@@ -128,7 +195,9 @@ export async function renderAdminView(
                 ? "<p>No applications yet.</p>"
                 : `<table class="gc-table">
                     <thead><tr><th>APPLICANT</th><th>DATE</th><th>NOTE</th><th class="num"></th></tr></thead>
-                    <tbody>${apps.map(row).join("")}</tbody>
+                    <tbody>${apps
+                      .map((a, i) => row(a, i, Boolean(members?.has(a.did))))
+                      .join("")}</tbody>
                   </table>`
             }
             <p id="admin-result" class="gc-small"></p>
@@ -139,9 +208,22 @@ export async function renderAdminView(
     <div class="gc-col col-span-full">
       ${appsPanel}
       ${rosterPanel(roster, identity, serviceDid, Boolean(rosterJustSaved))}
+      ${isServiceIdentity ? spacePanel(space, registrySpaceUri) : ""}
       <p class="gc-small"><a href="#">← back to member area</a></p>
     </div>
   `;
+
+  document.getElementById("create-space")?.addEventListener("click", async () => {
+    const btn = document.getElementById("create-space") as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      await createRegistrySpace(xrpc);
+      renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
+    } catch (e) {
+      btn.disabled = false;
+      document.getElementById("space-error")!.textContent = ` ${(e as Error).message}`;
+    }
+  });
 
   const rosterError = (msg: string) => {
     const el = document.getElementById("roster-error");
@@ -150,7 +232,7 @@ export async function renderAdminView(
   const entries = Array.isArray(roster) ? roster : [];
   const save = async (next: AdminEntry[]) => {
     await saveRoster(xrpc, identity.did, next);
-    renderAdminView(content, xrpc, identity, serviceDid, next);
+    rerenderWith(next);
   };
 
   document.getElementById("create-roster")?.addEventListener("click", async () => {
@@ -166,7 +248,7 @@ export async function renderAdminView(
   // roster write and just syncs space access, which makes a half-completed
   // add repairable by clicking ADD again.
   const rerenderWith = (next: AdminEntry[]) =>
-    renderAdminView(content, xrpc, identity, serviceDid, next);
+    renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri, next);
 
   // Space membership sync can fail independently of the roster write (the
   // deployed HappyView may lack the Lua spaces write API). The roster is the
@@ -239,9 +321,10 @@ export async function renderAdminView(
       const did = btn.dataset.approve!;
       const result = document.getElementById("admin-result")!;
       btn.disabled = true;
+      result.textContent = `Approving ${did}...`;
       try {
-        const res = await approveMember(xrpc, did);
-        result.textContent = `Approved ${did}${res.uri ? ` (${res.uri})` : ""}`;
+        await approveMember(xrpc, did);
+        renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
       } catch (e) {
         btn.disabled = false;
         result.innerHTML = `<span class="gc-error">Approval failed: ${esc((e as Error).message)}</span>`;

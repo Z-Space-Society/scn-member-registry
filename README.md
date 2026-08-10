@@ -1,18 +1,14 @@
-# scn-manage
+# Shared Computer Network - Operations
 
-Membership SPA for Shared Computer Network. See HANDOVER.md for
-design decisions, LEARNINGS.md for HappyView behavior, CLAUDE.md for
-architecture invariants.
+Membership and key management for Shared Computer Network.
 
 ## Setup
 
-Two steps happen in the HappyView dashboard because they mint credentials
-that cannot bootstrap themselves. Everything after that is scripted.
+Two steps need to be done manually in the HappyView dashboard to mint credentials. Outside of that `npm run deploy` installs all variables, lexicons, and scripts automatically.
 
 **1. In the HappyView dashboard**
 
-- Create an **admin API key** (`hv_…`) with permissions for lexicons,
-  scripts, script variables, settings, and backfill.
+- Create an **admin API key** (`hv_…`) with permissions for lexicons, scripts, script variables, settings, and backfill.
 - Create an **API client key** for this app:
  - **Type:** Public
  - **Client ID URI:** `http://127.0.0.1:5173/oauth/callback`
@@ -30,11 +26,7 @@ npm install
 npm run deploy
 ```
 
-`npm run deploy` enables the spaces feature flag, uploads every lexicon with
-its endpoint config, attaches the Lua scripts, and pushes the script
-variables. It reads `.env` (shell variables win over the file), skips
-variables that are not set, and every write is an upsert, so re-running is
-safe. `--dry-run` lists what it would do.
+`npm run deploy` enables the spaces feature flag, uploads every lexicon with its endpoint config, attaches the Lua scripts, and pushes the script variables. It reads `.env` (shell variables win over the file), skips variables that are not set, and every write is an upsert, so re-running is safe. Use `--dry-run` to test.
 
 **3. Bootstrap the registry**
 
@@ -53,8 +45,7 @@ npm run dev
   space write access in one action.
 - Sign in as an admin to approve applications.
 
-Backfill the `membership.request` and `admin.list` collections from the
-dashboard if the index needs to catch up on records written before setup.
+Backfill the `membership.request` and `admin.list` collections from the dashboard if the index needs to catch up on records written before setup.
 
 ## Development
 

@@ -107,6 +107,15 @@ export async function listRequests(
 export interface MembershipEvent {
   rkey: string;
   authorDid: string;
+  /** Grants only: the tier recorded at approval time. */
+  teamId?: string;
+  tier?: string;
+}
+
+export interface MemberSummary {
+  teamId?: string;
+  /** Tier name as it read when the grant was written. */
+  tier?: string;
 }
 
 export interface MembershipEvents {
@@ -130,16 +139,23 @@ export async function listMembers(xrpc: XrpcLike): Promise<MembershipEvents> {
 export function activeMembers(
   events: MembershipEvents,
   everAdmins: Iterable<string>
-): Set<string> {
+): Map<string, MemberSummary> {
   const admins = new Set(everAdmins);
   const byAdmin = (e: MembershipEvent) => admins.has(e.authorDid);
+  const grants = events.grants.filter(byAdmin);
   const state = resolveMembership(
-    events.grants.filter(byAdmin).map((e) => e.rkey),
+    grants.map((e) => e.rkey),
     events.revocations.filter(byAdmin).map((e) => e.rkey)
   );
-  return new Set(
-    [...state.entries()].filter(([, s]) => s.active).map(([did]) => did)
-  );
+
+  const byRkey = new Map(grants.map((g) => [g.rkey, g]));
+  const members = new Map<string, MemberSummary>();
+  for (const [did, s] of state) {
+    if (!s.active) continue;
+    const grant = s.grantRkey ? byRkey.get(s.grantRkey) : undefined;
+    members.set(did, { teamId: grant?.teamId, tier: grant?.tier });
+  }
+  return members;
 }
 
 export interface ProfileSync {
@@ -197,6 +213,21 @@ export async function approveMember(
   }
   if (options.email) input.email = options.email;
   const res = await xrpc.call(NSID.approveMember, undefined, input);
+  return res.data;
+}
+
+/**
+ * Revokes a membership: cuts off gateway access, then records a revocation
+ * authored by the calling admin.
+ */
+export async function revokeMember(
+  xrpc: XrpcLike,
+  did: string,
+  reason?: string
+): Promise<{ ok: boolean; keysRevoked?: number }> {
+  const input: Record<string, unknown> = { did: assertDid(did) };
+  if (reason) input.reason = reason;
+  const res = await xrpc.call(NSID.revokeMember, undefined, input);
   return res.data;
 }
 

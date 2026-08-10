@@ -50,7 +50,15 @@ function handle()
         cursor = cursor,
       }
       for _, rec in ipairs(page.records or {}) do
-        out[#out + 1] = { rkey = rec.rkey, authorDid = rec.authorDid }
+        local entry = { rkey = rec.rkey, authorDid = rec.authorDid }
+        local record = rec.record or {}
+        if record.litellmTeamId then
+          entry.teamId = record.litellmTeamId
+        end
+        if record.groups and record.groups[1] then
+          entry.tier = record.groups[1]
+        end
+        out[#out + 1] = entry
       end
       cursor = page.cursor
     until not cursor

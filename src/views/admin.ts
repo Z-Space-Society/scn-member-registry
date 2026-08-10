@@ -4,7 +4,9 @@ import {
   listMembers,
   listRequests,
   listTeams,
+  revokeMember,
   type ApplicationRow,
+  type MemberSummary,
   type Team,
   type XrpcLike,
 } from "../membership";
@@ -64,14 +66,39 @@ function spacePanel(
   `;
 }
 
-function teamSelect(teams: Team[], did: string): string {
+const sortedMembers = (members: Map<string, MemberSummary>) =>
+  [...members.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+/** `scope` keeps the applications and members tables from colliding when the
+ * same DID appears in both. */
+function teamSelect(
+  teams: Team[],
+  did: string,
+  scope: string,
+  selected?: string
+): string {
   if (teams.length === 0) return "";
   const options = teams
-    .map((t) => `<option value="${esc(t.teamId)}">${esc(t.alias)}</option>`)
+    .map(
+      (t) =>
+        `<option value="${esc(t.teamId)}"${t.teamId === selected ? " selected" : ""}>${esc(t.alias)}</option>`
+    )
     .join("");
-  return `<select class="gc-input" data-team-for="${esc(did)}" style="max-width: 11rem">
-            <option value="">(no team)</option>${options}
+  return `<select class="gc-input" data-team-for="${esc(scope)}:${esc(did)}" style="max-width: 11rem">
+            <option value=""${selected ? "" : " selected"}>(no team)</option>${options}
           </select> `;
+}
+
+function chosenTeam(
+  content: HTMLElement,
+  teams: Team[],
+  scope: string,
+  did: string
+): Team | undefined {
+  const select = content.querySelector<HTMLSelectElement>(
+    `[data-team-for="${CSS.escape(`${scope}:${did}`)}"]`
+  );
+  return teams.find((t) => t.teamId === select?.value);
 }
 
 function row(
@@ -88,9 +115,56 @@ function row(
       <td class="num">${
         isMember
           ? "<strong>MEMBER</strong>"
-          : `${teamSelect(teams, app.did)}<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
+          : `${teamSelect(teams, app.did, "app")}<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
       }</td>
     </tr>
+  `;
+}
+
+function membersPanel(
+  members: Map<string, MemberSummary> | null,
+  teams: Team[]
+): string {
+  if (members === null) {
+    return `
+      <section class="gc-panel">
+        <div class="gc-panel-title"><span>MEMBERS</span></div>
+        <div class="gc-panel-body">
+          <p class="gc-small">Membership is unavailable right now.</p>
+        </div>
+      </section>`;
+  }
+  const entries = sortedMembers(members);
+  const rows = entries
+    .map(
+      ([did, summary], i) => `
+      <tr>
+        <td><span id="member-handle-${i}">...</span></td>
+        <td class="gc-mono">${esc(did)}</td>
+        <td>${summary.tier ? esc(summary.tier) : "<span class='gc-small'>(no tier)</span>"}</td>
+        <td class="num">
+          ${teamSelect(teams, did, "member", summary.teamId)}
+          ${teams.length ? `<button class="gc-btn" data-set-tier="${esc(did)}">SET TIER</button>` : ""}
+          <button class="gc-btn" data-revoke-member="${esc(did)}">REVOKE</button>
+        </td>
+      </tr>`
+    )
+    .join("");
+  return `
+    <section class="gc-panel">
+      <div class="gc-panel-title"><span>MEMBERS</span><span class="gc-mono text-[11px] text-[#99ccff]">${entries.length} ACTIVE</span></div>
+      <div class="gc-panel-body">
+        ${
+          entries.length === 0
+            ? "<p>No active members yet.</p>"
+            : `<table class="gc-table">
+                <thead><tr><th>HANDLE</th><th>DID</th><th>TIER</th><th class="num"></th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>`
+        }
+        <p id="member-result" class="gc-small"></p>
+      </div>
+    </section>
   `;
 }
 
@@ -228,6 +302,7 @@ export async function renderAdminView(
   content.innerHTML = `
     <div class="gc-col col-span-full">
       ${appsPanel}
+      ${membersPanel(members, teams)}
       ${rosterPanel(roster, identity, serviceDid, Boolean(rosterJustSaved))}
       ${isServiceIdentity ? spacePanel(space, registrySpaceUri) : ""}
       <p class="gc-small"><a href="#">← back to member area</a></p>
@@ -337,14 +412,68 @@ export async function renderAdminView(
     });
   }
 
+  if (members) {
+    sortedMembers(members).forEach(([did], i) => {
+      resolveHandle(did).then((handle) => {
+        const el = document.getElementById(`member-handle-${i}`);
+        if (el) el.textContent = handle !== did ? handle : "?";
+      });
+    });
+  }
+
+  // A tier change is a re-approval: it writes a fresh grant recording the new
+  // tier and moves the member between LiteLLM teams.
+  content.querySelectorAll<HTMLButtonElement>("[data-set-tier]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const did = btn.dataset.setTier!;
+      const result = document.getElementById("member-result")!;
+      const team = chosenTeam(content, teams, "member", did);
+      if (!team) {
+        result.innerHTML = `<span class="gc-error">Pick a tier first.</span>`;
+        return;
+      }
+      btn.disabled = true;
+      result.textContent = `Setting ${did} to ${team.alias}...`;
+      try {
+        await approveMember(xrpc, did, { team });
+        renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
+      } catch (e) {
+        btn.disabled = false;
+        result.innerHTML = `<span class="gc-error">Tier change failed: ${esc((e as Error).message)}</span>`;
+      }
+    });
+  });
+
+  content.querySelectorAll<HTMLButtonElement>("[data-revoke-member]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const did = btn.dataset.revokeMember!;
+      const result = document.getElementById("member-result")!;
+      if (
+        !confirm(
+          `Revoke membership for ${did}?\n\nTheir API keys are deleted and they lose their tier. The grant stays on record; re-approving restores access.`
+        )
+      ) {
+        return;
+      }
+      const reason = prompt("Reason (optional, recorded on the revocation):") ?? undefined;
+      btn.disabled = true;
+      result.textContent = `Revoking ${did}...`;
+      try {
+        const res = await revokeMember(xrpc, did, reason || undefined);
+        result.textContent = `Revoked ${did} (${res.keysRevoked ?? 0} key(s) deleted)`;
+        renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
+      } catch (e) {
+        btn.disabled = false;
+        result.innerHTML = `<span class="gc-error">Revocation failed: ${esc((e as Error).message)}</span>`;
+      }
+    });
+  });
+
   content.querySelectorAll<HTMLButtonElement>("[data-approve]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const did = btn.dataset.approve!;
       const result = document.getElementById("admin-result")!;
-      const select = content.querySelector<HTMLSelectElement>(
-        `[data-team-for="${CSS.escape(did)}"]`
-      );
-      const team = teams.find((t) => t.teamId === select?.value);
+      const team = chosenTeam(content, teams, "app", did);
       btn.disabled = true;
       result.textContent = `Approving ${did}...`;
       try {

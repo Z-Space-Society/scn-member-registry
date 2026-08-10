@@ -117,12 +117,39 @@ function handle()
   if res.status ~= 200 then
     local exists = string.find(res.body or "", "already exist", 1, true)
     if not exists then
-      log("approveMember: /user/new failed with status " .. tostring(res.status))
+      log("approveMember: /user/new failed with status " .. tostring(res.status)
+        .. ": " .. string.sub(res.body or "", 1, 200))
       error("litellm provisioning failed")
     end
   end
 
   if team_id then
+    -- Drop any other team first, then add to the requested team.
+    local info_ok, info_res = pcall(http.get,
+      env.LITELLM_BASE_URL .. "/user/info?user_id=" .. subject, {
+        headers = { Authorization = "Bearer " .. env.LITELLM_PROVISIONER_KEY },
+      })
+    if info_ok and info_res.status == 200 then
+      local info = json.decode(info_res.body)
+      local user = info.user_info or info
+      for _, existing in ipairs(user.teams or {}) do
+        if existing ~= team_id then
+          local left = gateway("/team/member_delete", {
+            team_id = existing,
+            user_id = subject,
+          })
+          if left.status ~= 200
+            and not string.find(left.body or "", "not found", 1, true)
+          then
+            log("approveMember: /team/member_delete returned status "
+              .. tostring(left.status) .. ": "
+              .. string.sub(left.body or "", 1, 200))
+            error("could not move member off their previous team")
+          end
+        end
+      end
+    end
+
     local member = { user_id = subject, role = "user" }
     if email then
       member.user_email = email
@@ -134,8 +161,10 @@ function handle()
     if team_res.status ~= 200 then
       local already = string.find(team_res.body or "", "already", 1, true)
       if not already then
+        -- Include the gateway's reason.
         log("approveMember: /team/member_add failed with status "
-          .. tostring(team_res.status))
+          .. tostring(team_res.status) .. ": "
+          .. string.sub(team_res.body or "", 1, 200))
         error("litellm team assignment failed")
       end
     end

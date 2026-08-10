@@ -9,6 +9,7 @@ import {
   getMyRequest,
   listRequests,
   listTeams,
+  revokeMember,
   submitRequest,
   syncProfile,
   withdrawRequest,
@@ -150,7 +151,7 @@ describe("activeMembers", () => {
       grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
       revocations: [],
     };
-    expect(activeMembers(events, [ADMIN])).toEqual(new Set([DID]));
+    expect([...activeMembers(events, [ADMIN]).keys()]).toEqual([DID]);
   });
 
   it("excludes a DID whose latest event is a revocation", () => {
@@ -158,7 +159,7 @@ describe("activeMembers", () => {
       grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
       revocations: [{ rkey: `${DID}:${t2}`, authorDid: ADMIN }],
     };
-    expect(activeMembers(events, [ADMIN])).toEqual(new Set());
+    expect(activeMembers(events, [ADMIN]).size).toBe(0);
   });
 
   it("ignores grants authored by someone who was never an admin", () => {
@@ -166,7 +167,7 @@ describe("activeMembers", () => {
       grants: [{ rkey: `${DID}:${t1}`, authorDid: OUTSIDER }],
       revocations: [],
     };
-    expect(activeMembers(events, [ADMIN])).toEqual(new Set());
+    expect(activeMembers(events, [ADMIN]).size).toBe(0);
   });
 
   it("honors grants from a departed admin", () => {
@@ -174,13 +175,46 @@ describe("activeMembers", () => {
       grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
       revocations: [],
     };
-    expect(activeMembers(events, [ADMIN])).toEqual(new Set([DID]));
+    expect(activeMembers(events, [ADMIN]).has(DID)).toBe(true);
   });
 
   it("returns empty for no events", () => {
-    expect(activeMembers({ grants: [], revocations: [] }, [ADMIN])).toEqual(
-      new Set()
-    );
+    expect(activeMembers({ grants: [], revocations: [] }, [ADMIN]).size).toBe(0);
+  });
+
+  it("reports the tier recorded on the winning grant", () => {
+    const events = {
+      grants: [
+        { rkey: `${DID}:${t1}`, authorDid: ADMIN, teamId: "t-1", tier: "Standard" },
+      ],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
+      teamId: "t-1",
+      tier: "Standard",
+    });
+  });
+
+  it("prefers the newest grant's tier after a tier change", () => {
+    const events = {
+      grants: [
+        { rkey: `${DID}:${t1}`, authorDid: ADMIN, teamId: "t-1", tier: "Standard" },
+        { rkey: `${DID}:${t2}`, authorDid: ADMIN, teamId: "t-2", tier: "Priority" },
+      ],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN]).get(DID)?.tier).toBe("Priority");
+  });
+
+  it("leaves the tier undefined when the grant recorded none", () => {
+    const events = {
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
+      revocations: [],
+    };
+    expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
+      teamId: undefined,
+      tier: undefined,
+    });
   });
 });
 
@@ -302,5 +336,29 @@ describe("syncProfile", () => {
       },
     };
     expect(await syncProfile(xrpc, { handle: "atproto.example.com" })).toBe(false);
+  });
+});
+
+describe("revokeMember", () => {
+  it("sends the did and an optional reason", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true, keysRevoked: 2 }));
+    const res = await revokeMember(xrpc, DID, "left the co-op");
+    expect(res.keysRevoked).toBe(2);
+    expect(xrpc.call).toHaveBeenCalledWith(NSID.revokeMember, undefined, {
+      did: DID,
+      reason: "left the co-op",
+    });
+  });
+
+  it("omits the reason when not given", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    await revokeMember(xrpc, DID);
+    expect(xrpc.call.mock.calls[0][2]).toEqual({ did: DID });
+  });
+
+  it("rejects a malformed DID before calling the server", async () => {
+    const xrpc = fakeXrpc(() => ({ ok: true }));
+    await expect(revokeMember(xrpc, "did:plc:a/b")).rejects.toThrow(/not a DID/);
+    expect(xrpc.call).not.toHaveBeenCalled();
   });
 });

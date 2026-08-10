@@ -73,6 +73,7 @@ const MANIFEST = [
   { file: "network.sharedcomputer.membership.revokeKey.json", script: "revoke_key.lua" },
   { file: "network.sharedcomputer.membership.getMine.json", script: "get_my_membership.lua" },
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
+  { file: "network.sharedcomputer.admin.revokeMember.json", script: "revoke_member.lua" },
   { file: "network.sharedcomputer.admin.setSpaceAccess.json", script: "set_space_access.lua" },
   { file: "network.sharedcomputer.admin.listTeams.json", script: "list_teams.lua" },
 ];

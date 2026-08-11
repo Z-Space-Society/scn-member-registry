@@ -47,6 +47,12 @@ const ADMIN_LIST_COLLECTION = "network.sharedcomputer.admin.list";
 const MANIFEST = [
   { file: "network.sharedcomputer.membership.request.json", backfill: true },
   { file: "network.sharedcomputer.admin.list.json", backfill: true },
+  // Registry-space records, written by approve_member.lua / revoke_member.lua.
+  // No backfill: unlike the two above, these never reach a public PDS or the
+  // firehose, so there is no history to catch up on. Published as lexicons
+  // anyway because Corliss becomes a second consumer of the grant shape.
+  { file: "network.sharedcomputer.membership.grant.json" },
+  { file: "network.sharedcomputer.membership.revocation.json" },
   {
     file: "network.sharedcomputer.membership.submitRequest.json",
     targetCollection: REQUEST_COLLECTION,

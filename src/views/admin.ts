@@ -168,7 +168,7 @@ function membersPanel(
   `;
 }
 
-function rosterRow(entry: AdminEntry, i: number): string {
+function rosterRow(entry: AdminEntry, i: number, canEdit: boolean): string {
   const status = entry.removedAt
     ? `removed ${fmtDate(entry.removedAt)}`
     : "ACTIVE";
@@ -179,9 +179,9 @@ function rosterRow(entry: AdminEntry, i: number): string {
       <td>${fmtDate(entry.addedAt)}</td>
       <td>${esc(status)}</td>
       <td class="num">${
-        entry.removedAt
-          ? ""
-          : `<button class="gc-btn" data-remove-admin="${esc(entry.did)}">REMOVE</button>`
+        canEdit && !entry.removedAt
+          ? `<button class="gc-btn" data-remove-admin="${esc(entry.did)}">REMOVE</button>`
+          : ""
       }</td>
     </tr>
   `;
@@ -196,34 +196,43 @@ function rosterPanel(
   const savedNotice = saved
     ? `<p class="gc-small">Roster saved to the service repo. The index can lag behind; this view reflects your write.</p>`
     : "";
+  // The roster is only read from the service DID's repo, and only the space
+  // authority may change space membership.
+  const isAuthority = serviceDid && identity.did === serviceDid;
   let body: string;
   if (!serviceDid) {
     body = `<p class="gc-small">Set <code>VITE_SERVICE_DID</code> to manage the admin roster.</p>`;
   } else if (roster instanceof Error) {
     body = `<p class="gc-error">Could not load the roster: <code>${esc(roster.message)}</code></p>`;
   } else if (roster === null) {
-    body = `
-      <p>No roster record exists yet. Until one does, only the bootstrap admin
-      (script env <code>BOOTSTRAP_ADMIN_DID</code>) has authority.</p>
-      <button id="create-roster" class="gc-btn">CREATE ROSTER WITH ME ON IT</button>
-      <span id="roster-error" class="gc-error"></span>
-    `;
+    body = isAuthority
+      ? `
+        <p>No roster record exists yet. Until one does, only the bootstrap admin
+        (script env <code>BOOTSTRAP_ADMIN_DID</code>) has authority.</p>
+        <button id="create-roster" class="gc-btn">CREATE ROSTER WITH ME ON IT</button>
+        <span id="roster-error" class="gc-error"></span>
+      `
+      : `<p>No roster record exists yet.</p>`;
   } else {
     body = `
       <table class="gc-table">
         <thead><tr><th>HANDLE</th><th>DID</th><th>ADDED</th><th>STATUS</th><th class="num"></th></tr></thead>
-        <tbody>${roster.map(rosterRow).join("")}</tbody>
+        <tbody>${roster.map((e, i) => rosterRow(e, i, Boolean(isAuthority))).join("")}</tbody>
       </table>
-      <p class="mt-3">
-        <input id="new-admin-did" class="gc-input" placeholder="did:plc:...">
-        <button id="add-admin" class="gc-btn mt-2">ADD ADMIN</button>
-        <span id="roster-error" class="gc-error"></span>
-      </p>
+      ${
+        isAuthority
+          ? `<p class="mt-3">
+              <input id="new-admin-did" class="gc-input" placeholder="did:plc:...">
+              <button id="add-admin" class="gc-btn mt-2">ADD ADMIN</button>
+              <span id="roster-error" class="gc-error"></span>
+            </p>`
+          : ""
+      }
     `;
   }
   const foreignWarning =
-    serviceDid && identity.did !== serviceDid
-      ? `<p class="gc-small gc-error">You are not signed in as the service DID: roster writes would land in your own repo and be ignored.</p>`
+    serviceDid && !isAuthority
+      ? `<p class="gc-small gc-error">Read only: the roster lives in the service DID's repo and only that identity can change it. Sign in as <code>${esc(serviceDid)}</code> to add or remove admins.</p>`
       : "";
   return `
     <section class="gc-panel">

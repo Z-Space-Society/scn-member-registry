@@ -47,6 +47,25 @@ npm run dev
 
 Backfill the `membership.request` and `admin.list` collections from the dashboard if the index needs to catch up on records written before setup.
 
+## Deploying
+
+Static bundle, no backend — privileged work runs in the Lua procedures.
+
+Set `VITE_OAUTH_CLIENT_ID` to the public URL of the client metadata and
+`VITE_OAUTH_REDIRECT_URI` to `https://<host>/oauth/callback`, then:
+
+```sh
+npm run build   # generates public/client-metadata.json, then dist/
+```
+
+Serve `dist/` with an SPA fallback; `/oauth/callback` is a route, not a file.
+
+Update the HappyView API client to match: client ID URL, plus the production
+callback added to (not replacing) the loopback redirect URI.
+
+Hosting real client metadata is what makes token refresh work — loopback dev
+clients can't refresh, so writes fail a couple of hours after sign-in.
+
 ## Development
 
 Open `http://127.0.0.1:5173` — the loopback IP, not `localhost`, and not a

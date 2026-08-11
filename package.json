@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "prebuild": "node scripts/client-metadata.mjs"
   },
   "dependencies": {
     "@atproto/xrpc": "^0.8.6",

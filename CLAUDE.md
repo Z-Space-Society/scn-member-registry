@@ -79,6 +79,14 @@ working around it.
   resurrecting a revoked member. The push fires *after* the space write and
   never fails the call — the record is the event, and a stale cache is the
   recoverable state.
+- **Queries return the record verbatim, never a projection.** `listMembers`
+  hands back `{rkey, authorDid, record}` — the space metadata wrapped around
+  the record untouched. It used to copy out the three fields this repo's own
+  SPA rendered, which quietly dropped `grantedAt`/`revokedAt` and made the
+  bullet above false: the push and the read were two shapes for one lexicon,
+  so a consumer could not reconcile with the parser it already had. The
+  subject DID is not a field — it is the leading half of the rkey, split on the
+  last colon, because a copy could disagree with it.
 
 ## Secrets
 

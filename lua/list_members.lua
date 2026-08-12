@@ -50,12 +50,21 @@ function handle()
         cursor = cursor,
       }
       for _, rec in ipairs(page.records or {}) do
-        local entry = { rkey = rec.rkey, authorDid = rec.authorDid }
-        local record = rec.record or {}
-        if record.tier then
-          entry.tier = record.tier
-        end
-        out[#out + 1] = entry
+        -- The record verbatim, wrapped in the space metadata that arrives
+        -- alongside it. This is the same envelope approve_member pushes to
+        -- Corliss, minus `did` — which is not a field of the record, only the
+        -- leading half of the rkey, so a consumer splits it back out on the
+        -- last colon rather than trusting a copy.
+        --
+        -- Deliberately not projected down to the fields this repo's SPA
+        -- happens to render: that dropped grantedAt/revokedAt, which a
+        -- consumer reconciling its own cache from here needs, and it meant the
+        -- push and the read returned two different shapes for one lexicon.
+        out[#out + 1] = {
+          rkey = rec.rkey,
+          authorDid = rec.authorDid,
+          record = rec.record or {},
+        }
       end
       cursor = page.cursor
     until not cursor

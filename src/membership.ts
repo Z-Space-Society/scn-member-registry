@@ -105,11 +105,24 @@ export async function listRequests(
   }));
 }
 
+/**
+ * A grant or revocation as it sits in the registry space: the record verbatim,
+ * wrapped in the metadata the space returns alongside it. The subject DID is
+ * not a field — it is the leading half of the rkey (see `parseEventRkey`).
+ *
+ * The same shape `approve_member.lua` pushes to the membership consumer, so
+ * one parser serves both the push and a reconciliation read.
+ */
 export interface MembershipEvent {
   rkey: string;
   authorDid: string;
-  /** Grants only: the tier slug recorded at approval time. */
-  tier?: string;
+  record: {
+    /** Grants only: the tier slug recorded at approval time. */
+    tier?: string;
+    grantedAt?: string;
+    revokedAt?: string;
+    reason?: string;
+  };
 }
 
 export interface MemberSummary {
@@ -152,7 +165,7 @@ export function activeMembers(
   for (const [did, s] of state) {
     if (!s.active) continue;
     const grant = s.grantRkey ? byRkey.get(s.grantRkey) : undefined;
-    members.set(did, { tier: grant?.tier });
+    members.set(did, { tier: grant?.record?.tier });
   }
   return members;
 }

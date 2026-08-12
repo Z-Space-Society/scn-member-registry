@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Grant and revocation events from the registry space, for resolving who is currently a member. Admin-only: the membership roll is not member-visible.",
+      "description": "Grant and revocation events from the registry space, for resolving who is currently a member. Admin-only: the membership roll is not member-visible. Each entry is the space record verbatim under `record`, plus the `rkey` and `authorDid` the space returns alongside it — the same envelope pushed to the membership consumer on each write, so one parser serves both. The subject DID is not a field: it is the leading half of the rkey, split on the last colon. Only records in the registry space are returned; a grant record published to someone's own PDS and picked up by the index is not membership and never appears here.",
       "output": {
         "encoding": "application/json",
         "schema": {

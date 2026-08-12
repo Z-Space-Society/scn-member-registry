@@ -34,33 +34,6 @@ export async function resolvePds(did: string): Promise<string> {
   return svc.serviceEndpoint;
 }
 
-/** The part of a HappyView session this module needs, for testability. */
-export interface SessionLike {
-  did: string;
-  fetchHandler(url: string, init: RequestInit): Promise<Response>;
-}
-
-/**
- * Reads the signed-in account's email from its own PDS.
- */
-export async function fetchAccountEmail(
-  session: SessionLike
-): Promise<string | null> {
-  try {
-    const pds = await resolvePds(session.did);
-    const res = await session.fetchHandler(
-      `${pds}/xrpc/com.atproto.server.getSession`,
-      { method: "GET" }
-    );
-    if (!res.ok) return null;
-    const body = await res.json();
-    return typeof body.email === "string" ? body.email : null;
-  } catch (e) {
-    console.warn("email lookup failed:", e);
-    return null;
-  }
-}
-
 /**
  * Reads a record from the owner's PDS. Returns the record value, or null
  * when the record does not exist. Throws on anything else.

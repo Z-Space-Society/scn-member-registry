@@ -3,13 +3,12 @@ import {
   approveMember,
   listMembers,
   listRequests,
-  listTeams,
   revokeMember,
   type ApplicationRow,
   type MemberSummary,
-  type Team,
   type XrpcLike,
 } from "../membership";
+import { DEFAULT_TIER, TIERS, isTier, type Tier } from "../tiers";
 import {
   getRoster,
   isCurrentAdmin,
@@ -69,44 +68,32 @@ function spacePanel(
 const sortedMembers = (members: Map<string, MemberSummary>) =>
   [...members.entries()].sort(([a], [b]) => a.localeCompare(b));
 
-/** `scope` keeps the applications and members tables from colliding when the
- * same DID appears in both. */
-function teamSelect(
-  teams: Team[],
-  did: string,
-  scope: string,
-  selected?: string
-): string {
-  if (teams.length === 0) return "";
-  const options = teams
-    .map(
-      (t) =>
-        `<option value="${esc(t.teamId)}"${t.teamId === selected ? " selected" : ""}>${esc(t.alias)}</option>`
-    )
-    .join("");
-  return `<select class="gc-input" data-team-for="${esc(scope)}:${esc(did)}" style="max-width: 11rem">
-            <option value=""${selected ? "" : " selected"}>(no team)</option>${options}
+/**
+ * `scope` keeps the applications and members tables from colliding when the
+ * same DID appears in both.
+ *
+ * There is no empty option: a grant without a tier is a fail-open bug (see
+ * the grant lexicon), so the control cannot express one. An unselected row
+ * defaults to the free tier rather than to nothing.
+ */
+function tierSelect(did: string, scope: string, selected?: string): string {
+  const current = isTier(selected) ? selected : DEFAULT_TIER;
+  const options = TIERS.map(
+    (t) => `<option value="${t}"${t === current ? " selected" : ""}>${t}</option>`
+  ).join("");
+  return `<select class="gc-input" data-tier-for="${esc(scope)}:${esc(did)}" style="max-width: 8rem">
+            ${options}
           </select> `;
 }
 
-function chosenTeam(
-  content: HTMLElement,
-  teams: Team[],
-  scope: string,
-  did: string
-): Team | undefined {
+function chosenTier(content: HTMLElement, scope: string, did: string): Tier {
   const select = content.querySelector<HTMLSelectElement>(
-    `[data-team-for="${CSS.escape(`${scope}:${did}`)}"]`
+    `[data-tier-for="${CSS.escape(`${scope}:${did}`)}"]`
   );
-  return teams.find((t) => t.teamId === select?.value);
+  return isTier(select?.value) ? select.value : DEFAULT_TIER;
 }
 
-function row(
-  app: ApplicationRow,
-  i: number,
-  isMember: boolean,
-  teams: Team[]
-): string {
+function row(app: ApplicationRow, i: number, isMember: boolean): string {
   return `
     <tr>
       <td><span id="handle-${i}" class="gc-mono">${esc(app.did)}</span></td>
@@ -115,16 +102,13 @@ function row(
       <td class="num">${
         isMember
           ? "<strong>MEMBER</strong>"
-          : `${teamSelect(teams, app.did, "app")}<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
+          : `${tierSelect(app.did, "app")}<button class="gc-btn" data-approve="${esc(app.did)}">APPROVE</button>`
       }</td>
     </tr>
   `;
 }
 
-function membersPanel(
-  members: Map<string, MemberSummary> | null,
-  teams: Team[]
-): string {
+function membersPanel(members: Map<string, MemberSummary> | null): string {
   if (members === null) {
     return `
       <section class="gc-panel">
@@ -143,8 +127,8 @@ function membersPanel(
         <td class="gc-mono">${esc(did)}</td>
         <td>${summary.tier ? esc(summary.tier) : "<span class='gc-small'>(no tier)</span>"}</td>
         <td class="num">
-          ${teamSelect(teams, did, "member", summary.teamId)}
-          ${teams.length ? `<button class="gc-btn" data-set-tier="${esc(did)}">SET TIER</button>` : ""}
+          ${tierSelect(did, "member", summary.tier)}
+          <button class="gc-btn" data-set-tier="${esc(did)}">SET TIER</button>
           <button class="gc-btn" data-revoke-member="${esc(did)}">REVOKE</button>
         </td>
       </tr>`
@@ -253,7 +237,7 @@ export async function renderAdminView(
   content.innerHTML = `<div class="gc-col"><p>Loading applications...</p></div>`;
   const isServiceIdentity = Boolean(serviceDid && identity.did === serviceDid);
 
-  const [apps, roster, space, events, teams] = await Promise.all([
+  const [apps, roster, space, events] = await Promise.all([
     listRequests(xrpc).catch((e: Error) => e),
     rosterJustSaved
       ? Promise.resolve(rosterJustSaved)
@@ -268,10 +252,6 @@ export async function renderAdminView(
     listMembers(xrpc).catch((e: Error) => {
       console.warn("member lookup failed:", e);
       return null;
-    }),
-    listTeams(xrpc).catch((e: Error) => {
-      console.warn("team lookup failed:", e);
-      return [] as Team[];
     }),
   ]);
 
@@ -300,7 +280,7 @@ export async function renderAdminView(
                 : `<table class="gc-table">
                     <thead><tr><th>APPLICANT</th><th>DATE</th><th>NOTE</th><th class="num"></th></tr></thead>
                     <tbody>${apps
-                      .map((a, i) => row(a, i, Boolean(members?.has(a.did)), teams))
+                      .map((a, i) => row(a, i, Boolean(members?.has(a.did))))
                       .join("")}</tbody>
                   </table>`
             }
@@ -311,7 +291,7 @@ export async function renderAdminView(
   content.innerHTML = `
     <div class="gc-col col-span-full">
       ${appsPanel}
-      ${membersPanel(members, teams)}
+      ${membersPanel(members)}
       ${rosterPanel(roster, identity, serviceDid, Boolean(rosterJustSaved))}
       ${isServiceIdentity ? spacePanel(space, registrySpaceUri) : ""}
       <p class="gc-small"><a href="#">← back to member area</a></p>
@@ -431,20 +411,16 @@ export async function renderAdminView(
   }
 
   // A tier change is a re-approval: it writes a fresh grant recording the new
-  // tier and moves the member between LiteLLM teams.
+  // tier, and latest-event-wins resolves it.
   content.querySelectorAll<HTMLButtonElement>("[data-set-tier]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const did = btn.dataset.setTier!;
       const result = document.getElementById("member-result")!;
-      const team = chosenTeam(content, teams, "member", did);
-      if (!team) {
-        result.innerHTML = `<span class="gc-error">Pick a tier first.</span>`;
-        return;
-      }
+      const tier = chosenTier(content, "member", did);
       btn.disabled = true;
-      result.textContent = `Setting ${did} to ${team.alias}...`;
+      result.textContent = `Setting ${did} to ${tier}...`;
       try {
-        await approveMember(xrpc, did, { team });
+        await approveMember(xrpc, did, tier);
         renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
       } catch (e) {
         btn.disabled = false;
@@ -459,7 +435,7 @@ export async function renderAdminView(
       const result = document.getElementById("member-result")!;
       if (
         !confirm(
-          `Revoke membership for ${did}?\n\nTheir API keys are deleted and they lose their tier. The grant stays on record; re-approving restores access.`
+          `Revoke membership for ${did}?\n\nThe grant stays on record; re-approving restores access.`
         )
       ) {
         return;
@@ -468,8 +444,7 @@ export async function renderAdminView(
       btn.disabled = true;
       result.textContent = `Revoking ${did}...`;
       try {
-        const res = await revokeMember(xrpc, did, reason || undefined);
-        result.textContent = `Revoked ${did} (${res.keysRevoked ?? 0} key(s) deleted)`;
+        await revokeMember(xrpc, did, reason || undefined);
         renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
       } catch (e) {
         btn.disabled = false;
@@ -482,11 +457,11 @@ export async function renderAdminView(
     btn.addEventListener("click", async () => {
       const did = btn.dataset.approve!;
       const result = document.getElementById("admin-result")!;
-      const team = chosenTeam(content, teams, "app", did);
+      const tier = chosenTier(content, "app", did);
       btn.disabled = true;
-      result.textContent = `Approving ${did}...`;
+      result.textContent = `Approving ${did} at ${tier}...`;
       try {
-        await approveMember(xrpc, did, { team });
+        await approveMember(xrpc, did, tier);
         renderAdminView(content, xrpc, identity, serviceDid, registrySpaceUri);
       } catch (e) {
         btn.disabled = false;

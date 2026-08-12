@@ -2,6 +2,7 @@ import { assertDid } from "./did";
 import { NSID } from "./lexicons";
 import { pdsGetRecord } from "./pds";
 import { resolveMembership } from "./rkey";
+import type { Tier } from "./tiers";
 
 /**
  * The membership application is a public record in the applicant's own PDS
@@ -65,7 +66,7 @@ export async function withdrawRequest(
 export interface Membership {
   active: boolean;
   grantedBy?: string;
-  grant?: { grantedAt?: string; groups?: string[] };
+  grant?: { grantedAt?: string; tier?: string };
 }
 
 /** The caller's membership state, resolved by the getMine Lua query. */
@@ -107,14 +108,12 @@ export async function listRequests(
 export interface MembershipEvent {
   rkey: string;
   authorDid: string;
-  /** Grants only: the tier recorded at approval time. */
-  teamId?: string;
+  /** Grants only: the tier slug recorded at approval time. */
   tier?: string;
 }
 
 export interface MemberSummary {
-  teamId?: string;
-  /** Tier name as it read when the grant was written. */
+  /** The tier slug from the grant that made this member active. */
   tier?: string;
 }
 
@@ -153,78 +152,38 @@ export function activeMembers(
   for (const [did, s] of state) {
     if (!s.active) continue;
     const grant = s.grantRkey ? byRkey.get(s.grantRkey) : undefined;
-    members.set(did, { teamId: grant?.teamId, tier: grant?.tier });
+    members.set(did, { tier: grant?.tier });
   }
   return members;
 }
 
-export interface ProfileSync {
-  email?: string;
-  handle?: string;
-}
-
 /**
- * Refreshes the member's handle and email on their LiteLLM user.
+ * Approves a member at a tier: roster-gated Lua procedure, grant authored by
+ * the caller. Also how a tier change is made — a fresh grant, resolved by
+ * latest-event-wins.
+ *
+ * `tier` is required rather than optional. The Lua rejects a missing one too;
+ * this is the near half of the same guard, so a caller gets a type error
+ * instead of a runtime one.
  */
-export async function syncProfile(
-  xrpc: XrpcLike,
-  profile: ProfileSync
-): Promise<boolean> {
-  const input: Record<string, string> = {};
-  if (profile.email) input.email = profile.email;
-  if (profile.handle) input.handle = profile.handle;
-  if (Object.keys(input).length === 0) return false;
-
-  try {
-    const res = await xrpc.call(NSID.syncProfile, undefined, input);
-    return Boolean(res.data?.ok);
-  } catch (e) {
-    console.warn("profile sync failed:", e);
-    return false;
-  }
-}
-
-export interface Team {
-  teamId: string;
-  alias: string;
-}
-
-/** LiteLLM teams available as membership tiers. */
-export async function listTeams(xrpc: XrpcLike): Promise<Team[]> {
-  const res = await xrpc.call(NSID.listTeams);
-  return res.data.teams ?? [];
-}
-
-export interface ApproveOptions {
-  team?: Team;
-  email?: string;
-}
-
-/** Approves a member: roster-gated Lua procedure, grant authored by caller. */
 export async function approveMember(
   xrpc: XrpcLike,
   did: string,
-  options: ApproveOptions = {}
+  tier: Tier
 ): Promise<{ ok: boolean; uri?: string }> {
-  const input: Record<string, unknown> = { did };
-  if (options.team) {
-    input.teamId = options.team.teamId;
-    input.teamLabel = options.team.alias;
-  }
-  if (options.email) input.email = options.email;
-  const res = await xrpc.call(NSID.approveMember, undefined, input);
+  const res = await xrpc.call(NSID.approveMember, undefined, {
+    did: assertDid(did),
+    tier,
+  });
   return res.data;
 }
 
-/**
- * Revokes a membership: cuts off gateway access, then records a revocation
- * authored by the calling admin.
- */
+/** Records a revocation in the registry space, authored by the calling admin. */
 export async function revokeMember(
   xrpc: XrpcLike,
   did: string,
   reason?: string
-): Promise<{ ok: boolean; keysRevoked?: number }> {
+): Promise<{ ok: boolean }> {
   const input: Record<string, unknown> = { did: assertDid(did) };
   if (reason) input.reason = reason;
   const res = await xrpc.call(NSID.revokeMember, undefined, input);

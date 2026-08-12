@@ -6,8 +6,8 @@ working around it.
 
 ## Identity
 
-- **DID is the join key, everywhere, forever.** HappyView `caller_did`,
-  LiteLLM `user_id`, record rkeys. Never key on handle or email.
+- **DID is the join key, everywhere, forever.** HappyView `caller_did`, record
+  rkeys, and the user id of anything downstream. Never key on handle or email.
 - Rauthy `sub` is an opaque internal ID, not the DID. The DID lives in the
   Rauthy user's `federation_uid`, reachable via the admin API or a custom
   claim. Resolve `sub` to the DID at the boundary; never treat `sub` as the
@@ -18,13 +18,9 @@ working around it.
   atproto-federated user without one, so a member without email could never
   reach chat. It remains a notification channel and a lookup convenience,
   never an identifier.
-- LiteLLM `user_id` **is** the member's DID. This is deliberate: it makes
-  `/user/new` idempotent on retry, which is what makes approval safely
-  repeatable without a transaction.
-- Handle and email are pushed onto the LiteLLM user (`user_alias`,
-  `user_email`) on every login, never stored here. atproto is authoritative;
-  the copy in LiteLLM is a display and notification convenience that
-  self-heals when either value changes upstream.
+- Whatever consumes membership keys its own user records on the DID too. That
+  is what makes provisioning idempotent on retry, and therefore what makes
+  approval safely repeatable without a transaction.
 
 ## Authority and trust
 
@@ -54,6 +50,14 @@ working around it.
   board-level question.
 - Grants and revocations are **admin-authored only**. Applications are
   **member-authored only**. Never blur these.
+- **Read grants from the space, never from the index.** The grant and
+  revocation lexicons are published, so HappyView's firehose indexer
+  recognises those records — and anyone can publish a record of that shape to
+  their own PDS. What makes a grant authoritative is that it is *in the
+  registry space*, written by an admin who holds space write access. A
+  consumer that resolves membership from the index instead has handed out
+  self-service membership. Every reader here uses `atproto.spaces.query`;
+  keep it that way, and hold future consumers to it.
 - **Append-only.** Never delete a grant. Revocation is a new record in the
   revocation collection. A member is active iff there is a grant with no later
   revocation. This also means an admin who has left cannot be un-done by
@@ -61,15 +65,14 @@ working around it.
 
 ## Secrets
 
-- The gateway admin credential exists in exactly one place: HappyView Lua
-  script `env` variables. Never in browser code, never in a record, never in a
-  lexicon.
-- That credential is a **revocable provisioner key** — a virtual key owned by
-  a `proxy_admin` service user — not the LiteLLM master key. The master key
-  stays offline as break-glass, so a compromised runtime costs one revocation
-  rather than a proxy-wide rotation.
+- **No gateway credential lives in this repo or its runtime.** There was one —
+  a LiteLLM provisioner key in the Lua script `env` — and it left along with
+  the gateway integration. The registry provisions nothing, so it needs no
+  credential that can act on anyone's behalf. Do not reintroduce one: a
+  privileged credential here would make script-deploy access equivalent to
+  gateway admin, on top of what it already means below.
 - The SPA holds a **public** API client key (`hvc_`) only. No client secret.
-- Any operation requiring the provisioner key goes through a Lua procedure that
+- Any operation writing to the registry goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record
   (`network.sharedcomputer.admin.list` in the service DID's repo, anchored by
   `env.SERVICE_DID`). Roster reads fail closed, with one exception: when no
@@ -89,39 +92,47 @@ working around it.
 | Identity (DID, handle, email) | atproto / Rauthy |
 | Admin roster | `admin.list` record in the service DID's repo |
 | Membership application | the applicant's own PDS |
-| Grant, revocation | HappyView registry space |
-| Tier definitions (models, limits) | LiteLLM teams |
-| Keys, budgets, spend counters | LiteLLM |
-| Inference | llama-server behind LiteLLM |
+| Grant, revocation, tier | HappyView registry space |
+| Entitlements a tier buys | outside this repo, keyed by the tier slug |
+| Keys, budgets, spend, inference | outside this repo |
 
-Nothing is stored in two places. If a value appears to need duplicating,
-it belongs in one of them and the other should hold a reference. A grant
-records the team alias as it read at approval time for display, but LiteLLM
-holds the authoritative team membership.
+Nothing is stored in two places. If a value appears to need duplicating, it
+belongs in one of them and the other should hold a reference.
+
+The grant records **one** thing about resources: the tier slug. What that slug
+entitles someone to — which models, which limits — is decided by whatever
+enforces it, and this repo neither knows nor asks. That boundary is the whole
+point: the registry is a record of who decided what, when.
 
 ## Membership and tiers
 
-- **Tiers are LiteLLM teams.** An admin picks one at approval; model access
-  and per-member limits live on the team, so changing a tier is a LiteLLM-side
-  change and nothing here moves.
-- **Budgets belong to the LiteLLM user, not the key.** Members can issue their
-  own keys, so a cap on a key would be no cap at all.
-- **Approval mints no key.** A key's plaintext is returned once and would be
-  unrecoverable, so an auto-created key is a row the member can never use.
-  Members issue their own from the dashboard, where the secret appears once in
-  their own browser and never passes through an admin.
-- **Key issuance is gated on active membership, and revocation on ownership.**
-  The provisioner key can mint and delete keys for anyone, so every procedure
-  that wields it re-establishes on the server which member is asking: issuing
-  proves active membership, revoking proves the key belongs to the caller.
-  A client may never aim that credential at another member.
+- **Tiers are SCN-owned slugs**, `level-0` through `level-9`, defined in
+  `lua/approve_member.lua` and `src/tiers.ts`. They are not sourced from any
+  gateway: taking the vocabulary from whatever enforces it would rebuild the
+  dependency this repo exists without.
+- **A slug, not an integer.** `level-0` is the free tier and the most common
+  one, and `0` is falsy in JavaScript — `if (grant.tier)` would silently drop
+  exactly the members it matters most for. The slug is also the exact string a
+  consumer's group must be *named*, since that match is by name, so the binding
+  stays greppable instead of hidden in a format string.
+- **Tier is required on a grant, enforced at write time.** A grant with no tier
+  is a fail-open bug, not a harmless default: a consumer that turns it into an
+  empty group claim causes Open WebUI to remove nothing, so the member silently
+  keeps the tier they had. Rejecting the write is what stops every downstream
+  reader having to invent a tier.
+- **A tier change is a re-approval.** It writes a fresh grant and
+  latest-event-wins resolves it — no record is ever edited.
+- **Display names map from the slug, never replace it.**
 
 ## Rejected — do not re-propose
 
-- **A client-only app with no privileged layer.** `/key/generate` accepts
-  `user_id`, `models`, and `max_budget`; a browser holding a credential that
-  can call it is a browser holding proxy admin. The Lua procedures are the
-  privileged layer, and LiteLLM is the one leg that requires them.
+- **A client-only app with no privileged layer.** The Lua procedures are where
+  admin authority is checked against the roster before anything is written. A
+  browser that could write the registry directly would be a browser holding
+  admin.
+- **Sourcing the tier vocabulary from whatever enforces entitlements.** It
+  would rebuild the registry-to-gateway dependency that removing the gateway
+  integration exists to delete.
 - **Members as registry space members.** They would gain a view of the
   membership roll and a write surface, in exchange for nothing they cannot get
   from a scoped procedure.
@@ -133,17 +144,14 @@ holds the authoritative team membership.
 
 ## Forensic cleanliness
 
-- `turn_off_message_logging` and `disable_spend_logs` stay on. Member usage
-  views read the daily aggregate tables, not request logs.
-- LiteLLM UI settings override config file values at runtime with no restart.
-  `store_prompts_in_spend_logs` must be asserted false periodically, not just
-  set once in config.
-- Never log prompt or completion content from Lua. `log()` output goes to the
-  event log and is retained.
+- Nothing here sees prompts or completions, and it should stay that way — the
+  registry records decisions about people, not their use of the system.
+- `log()` output goes to the event log and is retained. Never log anything from
+  Lua that would not be safe to keep.
 
 ## Availability
 
-- HappyView being down means: no signup, no approval, no usage view.
+- HappyView being down means: no signup, no approval, no roster change.
 - It must never mean: inference stops. The inference path is
   OWUI → LiteLLM → llama-server and does not touch HappyView.
 - Do not introduce a HappyView dependency into the request path.

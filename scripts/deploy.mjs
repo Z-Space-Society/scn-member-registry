@@ -68,20 +68,13 @@ const MANIFEST = [
     targetCollection: ADMIN_LIST_COLLECTION,
     action: "update",
   },
-  { file: "network.sharedcomputer.admin.gatewayHealth.json", script: "gateway_health.lua" },
   { file: "network.sharedcomputer.admin.whoami.json", script: "whoami.lua" },
   { file: "network.sharedcomputer.membership.listRequests.json", script: "list_requests.lua" },
   { file: "network.sharedcomputer.membership.listMembers.json", script: "list_members.lua" },
-  { file: "network.sharedcomputer.membership.getMyUsage.json", script: "get_my_usage.lua" },
-  { file: "network.sharedcomputer.membership.syncProfile.json", script: "sync_profile.lua" },
-  { file: "network.sharedcomputer.membership.listMyKeys.json", script: "list_my_keys.lua" },
-  { file: "network.sharedcomputer.membership.issueKey.json", script: "issue_key.lua" },
-  { file: "network.sharedcomputer.membership.revokeKey.json", script: "revoke_key.lua" },
   { file: "network.sharedcomputer.membership.getMine.json", script: "get_my_membership.lua" },
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
   { file: "network.sharedcomputer.admin.revokeMember.json", script: "revoke_member.lua" },
   { file: "network.sharedcomputer.admin.setSpaceAccess.json", script: "set_space_access.lua" },
-  { file: "network.sharedcomputer.admin.listTeams.json", script: "list_teams.lua" },
 ];
 
 /**
@@ -91,11 +84,8 @@ const MANIFEST = [
  * places, so they only need writing down once.
  */
 const VARIABLES = [
-  { key: "LITELLM_BASE_URL" },
-  { key: "LITELLM_PROVISIONER_KEY" },
   { key: "SERVICE_DID", fallback: "VITE_SERVICE_DID" },
   { key: "BOOTSTRAP_ADMIN_DID" },
-  { key: "MAX_KEYS_PER_MEMBER" },
   { key: "REGISTRY_SPACE_URI", fallback: "VITE_REGISTRY_SPACE_URI" },
 ];
 

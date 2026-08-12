@@ -6,8 +6,7 @@ import { allLexicons } from "./lexicons";
 import { renderShell, probeLamps, resolveHandle, type Identity } from "./shell";
 import { renderMemberView, renderSignInView } from "./views/member";
 import { renderAdminView } from "./views/admin";
-import { syncProfile, type XrpcLike } from "./membership";
-import { fetchAccountEmail } from "./pds";
+import { type XrpcLike } from "./membership";
 
 const cfg = loadConfig(import.meta.env);
 const oauthClient = createOauthClient(cfg);
@@ -79,7 +78,7 @@ if (session && identity && xrpc) {
   const resolved = identity;
   const client = xrpc;
 
-  resolveHandle(resolved.did).then(async (handle) => {
+  resolveHandle(resolved.did).then((handle) => {
     const known = handle !== resolved.did ? handle : undefined;
     if (known) {
       resolved.handle = known;
@@ -87,10 +86,5 @@ if (session && identity && xrpc) {
       probeLamps(cfg);
       route(client, resolved);
     }
-    // Keep the member's display details current on their LiteLLM user.
-    // atproto is authoritative, so this re-syncs on every login and is
-    // best effort throughout: nothing here may disturb the dashboard.
-    const email = (await fetchAccountEmail(session)) ?? undefined;
-    syncProfile(client, { handle: known, email });
   });
 }

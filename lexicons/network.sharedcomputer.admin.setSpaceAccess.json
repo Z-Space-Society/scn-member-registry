@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Grant or revoke registry space write membership for an admin. Caller must be the space authority (the service DID); the runtime enforces this. Idempotent in both directions.",
+      "description": "Grant or revoke registry space write membership for an admin. Caller must be the space authority (the service DID).",
       "input": {
         "encoding": "application/json",
         "schema": {

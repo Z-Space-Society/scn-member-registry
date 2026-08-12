@@ -17,10 +17,7 @@ function handle()
 
   -- Every DID ever listed as an admin, from the roster record in the service
   -- DID's repo. Grants by departed admins stay valid; write authority ends
-  -- with space membership, not with this filter. When no roster record
-  -- exists yet, env.BOOTSTRAP_ADMIN_DID is the sole admin so the first
-  -- roster can be written. An existing-but-empty roster is a
-  -- misconfiguration and fails closed.
+  -- with space membership, not with this filter.
   local function admin_set()
     local res = db.query{
       did = env.SERVICE_DID,

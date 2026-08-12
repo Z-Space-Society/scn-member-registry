@@ -41,10 +41,7 @@ export interface SessionLike {
 }
 
 /**
- * Reads the signed-in account's email from its own PDS. Requires the
- * `transition:email` scope; returns null when the scope was not granted, the
- * account has no email, or anything else goes wrong — this is a convenience
- * lookup and must never break sign-in.
+ * Reads the signed-in account's email from its own PDS.
  */
 export async function fetchAccountEmail(
   session: SessionLike

@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.revocation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An admin revoking a member's access, written to the registry space by revokeMember. The inverse of a grant, and the reason grants are never deleted: history stays intact and nobody can quietly erase it. The rkey is {memberDid}:{tid}, matching the grant collection, so both resolve the same way in a listing.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["revokedAt"],
+        "properties": {
+          "revokedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional admin note. Stored in the registry space, which is admin-only — but treat it as durable, since revocations are never deleted.",
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  }
+}

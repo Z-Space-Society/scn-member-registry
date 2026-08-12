@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.grant",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An admin granting a member access, written to the registry space by approveMember. Append-only: re-granting writes a new record and a member is active iff there is a grant with no later revocation. The rkey is {memberDid}:{tid}, so the subject and the ordering resolve from a listing without fetching each record.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["status", "litellmUserId", "grantedAt", "groups"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Always 'active'. A grant is never edited to revoke; revocation is a separate record.",
+            "knownValues": ["active"]
+          },
+          "litellmUserId": {
+            "type": "string",
+            "format": "did",
+            "description": "The member's DID. LiteLLM keys its user on the same value, which is what makes provisioning idempotent on retry."
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "groups": {
+            "type": "array",
+            "description": "Tier identifiers as recorded at approval time. The vocabulary is NOT yet settled: approveMember currently writes the LiteLLM team alias here, which is a mutable display string. Anything consuming this downstream (Corliss's group claim, Open WebUI group names) needs a stable key instead, so expect this to change before the first consumer exists.",
+            "items": { "type": "string", "maxLength": 64 }
+          },
+          "litellmTeamId": {
+            "type": "string",
+            "description": "The LiteLLM team backing this grant at the time it was written. LiteLLM stays authoritative for current team membership; this records what was chosen, not what is true now.",
+            "maxLength": 128
+          }
+        }
+      }
+    }
+  }
+}

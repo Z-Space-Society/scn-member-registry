@@ -40,6 +40,29 @@ function handle()
 
   require_current_admin(caller_did)
 
+  -- See approve_member.lua for why this is best-effort and why it fires after
+  -- the space write. Revocation is the direction where a dropped push matters
+  -- most — it leaves Corliss believing a removed member is still active — so
+  -- reconciliation is what closes this, not a retry here.
+  local function notify_corliss(payload)
+    if not env.CORLISS_PUSH_URL or not env.CORLISS_PUSH_TOKEN then
+      return
+    end
+    local ok, res = pcall(http.post, env.CORLISS_PUSH_URL, {
+      headers = {
+        Authorization = "Bearer " .. env.CORLISS_PUSH_TOKEN,
+        ["Content-Type"] = "application/json",
+      },
+      body = json.encode(payload),
+    })
+    if not ok then
+      log("membership push: egress failure reaching Corliss")
+    elseif res.status < 200 or res.status >= 300 then
+      log("membership push: status " .. tostring(res.status) .. ": "
+        .. string.sub(res.body or "", 1, 200))
+    end
+  end
+
   local subject = input.did
   if type(subject) ~= "string"
     or #subject > 512
@@ -68,6 +91,14 @@ function handle()
   local wrote = space:put_record{
     collection = "network.sharedcomputer.membership.revocation",
     rkey = rkey,
+    record = revocation,
+  }
+
+  notify_corliss{
+    event = "revoke",
+    did = subject,
+    rkey = rkey,
+    authorDid = caller_did,
     record = revocation,
   }
 

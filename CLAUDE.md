@@ -28,7 +28,13 @@ working around it.
   DID as author, always — the runtime enforces it and there is no way to write
   as someone else. Mint policy governs who can create repos in a space, never
   whose name goes on records. Readers ignore any record whose author is not on
-  the admin roster.
+  the admin roster — asking whether the author was a **current admin at the
+  time of the record**, not whether they are one now. Removing an admin ends
+  their authority going forward and leaves their past grants standing; the
+  only way to un-grant is a revocation record. The alternative reading makes
+  membership a function of the roster's present state, so one roster edit
+  silently de-members everyone that admin ever approved with nothing in the
+  event log to show for it.
 - **The registry space is admin-only.** Members are never space members, and
   member-facing code never reads the space directly. Members reach their own
   data through Lua procedures that read the space in-process
@@ -62,6 +68,17 @@ working around it.
   revocation collection. A member is active iff there is a grant with no later
   revocation. This also means an admin who has left cannot be un-done by
   deleting their records — and nobody can quietly erase history.
+- **The push is a cache update, not a second source of truth.** On grant and
+  revoke the Lua POSTs `{event, did, rkey, authorDid, record}` to
+  `env.CORLISS_PUSH_URL`. Those envelope fields are exactly what
+  `atproto.spaces.query` returns alongside a record, so a consumer
+  reconciling from the space fills the identical shape and there is no second
+  schema to drift from the lexicon. Order events by the rkey's TID, never by
+  `grantedAt`/`revokedAt`: those are second-resolution, so they cannot
+  separate two events in one second and cannot stop a retried stale grant
+  resurrecting a revoked member. The push fires *after* the space write and
+  never fails the call — the record is the event, and a stale cache is the
+  recoverable state.
 
 ## Secrets
 
@@ -71,6 +88,14 @@ working around it.
   credential that can act on anyone's behalf. Do not reintroduce one: a
   privileged credential here would make script-deploy access equivalent to
   gateway admin, on top of what it already means below.
+- **`CORLISS_PUSH_TOKEN` is not a counter-example to that.** It authorises one
+  verb — "assert a membership event" — at a consumer that treats the result as
+  a cache. It mints nothing, reads nothing, and acts on no one's behalf. If it
+  leaks, the blast radius is a wrong cache until reconciliation reads the
+  space again, not a standing capability. That is the line: credentials that
+  *act* stay out; a write-only notification token to a system we own is a
+  different thing. Keep it that way — if the push endpoint ever grows a read
+  side, this bullet stops being true.
 - The SPA holds a **public** API client key (`hvc_`) only. No client secret.
 - Any operation writing to the registry goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record
@@ -89,15 +114,23 @@ working around it.
 
 | Concern | Home |
 |---|---|
-| Identity (DID, handle, email) | atproto / Rauthy |
+| Identity (DID, handle, email) | atproto, brokered by Corliss |
 | Admin roster | `admin.list` record in the service DID's repo |
 | Membership application | the applicant's own PDS |
 | Grant, revocation, tier | HappyView registry space |
+| Who is currently a member | derived, never stored — see below |
 | Entitlements a tier buys | outside this repo, keyed by the tier slug |
 | Keys, budgets, spend, inference | outside this repo |
 
 Nothing is stored in two places. If a value appears to need duplicating, it
 belongs in one of them and the other should hold a reference.
+
+The membership push is the one thing that looks like an exception and is not.
+Current membership is *derived* — latest-event-wins over the grants and
+revocations — so a consumer holding it has a cache of a computation, not a
+second copy of a fact. Which is why the rule is that a consumer may serve
+access decisions from that cache but must never write back to it as though it
+were a source, and must be able to rebuild it from the space alone.
 
 The grant records **one** thing about resources: the tier slug. What that slug
 entitles someone to — which models, which limits — is decided by whatever

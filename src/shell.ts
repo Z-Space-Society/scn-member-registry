@@ -1,5 +1,4 @@
 import type { Config } from "./config";
-import { NSID } from "./lexicons";
 
 export function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -54,7 +53,6 @@ export function renderShell(root: HTMLElement, identity: Identity | null) {
         <div class="gc-rainbow gc-rainbow--animated"></div>
         <div class="gc-statusbar">
           <strong>SYSTEM STATUS:</strong>
-          <span class="inline-flex items-center gap-2"><span id="lamp-gateway" class="gc-lamp"></span><span class="gc-lamp-label">GATEWAY</span></span>
           <span class="inline-flex items-center gap-2"><span id="lamp-view" class="gc-lamp"></span><span class="gc-lamp-label">VIEW</span></span>
           <span class="inline-flex items-center gap-2"><span class="gc-lamp"></span><span class="gc-lamp-label">CHAT</span> <span class="gc-small">(soon)</span></span>
         </div>
@@ -69,22 +67,24 @@ export function renderShell(root: HTMLElement, identity: Identity | null) {
 }
 
 /**
- * Lights the GATEWAY and VIEW lamps from the public gatewayHealth query:
- * a response at all means VIEW is up; body.ok means the gateway is too.
+ * Lights the VIEW lamp by reaching the HappyView instance at all.
+ *
+ * `no-cors` because this is cross-origin and the answer wanted is only
+ * "reachable": an opaque response still resolves, and an unreachable host
+ * still rejects. Reading the body would need CORS headers we do not control
+ * and would tell us nothing more.
+ *
+ * (There was a GATEWAY lamp here, fed by a gateway-health query. It went with
+ * the rest of the gateway integration — the registry has no opinion on
+ * whether inference is up.)
  */
 export async function probeLamps(cfg: Config) {
-  const gateway = document.getElementById("lamp-gateway");
   const view = document.getElementById("lamp-view");
-  if (!gateway || !view) return;
+  if (!view) return;
   try {
-    const res = await fetch(`${cfg.happyviewUrl}/xrpc/${NSID.gatewayHealth}`, {
-      headers: { "X-Client-Key": cfg.clientKey },
-    });
-    view.classList.add(res.ok ? "gc-lamp--ok" : "gc-lamp--warn");
-    const body = res.ok ? await res.json() : { ok: false };
-    gateway.classList.add(body.ok ? "gc-lamp--ok" : "gc-lamp--warn");
+    await fetch(cfg.happyviewUrl, { mode: "no-cors" });
+    view.classList.add("gc-lamp--ok");
   } catch {
     view.classList.add("gc-lamp--warn");
-    gateway.classList.add("gc-lamp--warn");
   }
 }

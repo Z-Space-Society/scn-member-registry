@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "An admin revoking a member's access, written to the registry space by revokeMember. The inverse of a grant, and the reason grants are never deleted: history stays intact and nobody can quietly erase it. The rkey is {memberDid}:{tid}, matching the grant collection, so both resolve the same way in a listing.",
+      "description": "An admin revoking a member's access, written to the registry space by revokeMember. The inverse of a grant, and the reason grants are never deleted: history stays intact and nobody can quietly erase it. The rkey is {memberDid}:{tid}, matching the grant collection, so both resolve the same way in a listing. Like grants, these MUST be read from the registry space and never from the firehose index — a forged revocation read from the index would let anyone deny service to a member.",
       "key": "any",
       "record": {
         "type": "object",

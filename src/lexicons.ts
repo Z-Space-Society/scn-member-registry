@@ -11,21 +11,13 @@ export const NSID = {
   withdrawRequest: "network.sharedcomputer.membership.withdrawRequest",
   listRequests: "network.sharedcomputer.membership.listRequests",
   listMembers: "network.sharedcomputer.membership.listMembers",
-  getMyUsage: "network.sharedcomputer.membership.getMyUsage",
-  syncProfile: "network.sharedcomputer.membership.syncProfile",
-  listMyKeys: "network.sharedcomputer.membership.listMyKeys",
-  issueKey: "network.sharedcomputer.membership.issueKey",
-  revokeKey: "network.sharedcomputer.membership.revokeKey",
   approveMember: "network.sharedcomputer.admin.approveMember",
   revokeMember: "network.sharedcomputer.admin.revokeMember",
   setRoster: "network.sharedcomputer.admin.setRoster",
   setSpaceAccess: "network.sharedcomputer.admin.setSpaceAccess",
-  listTeams: "network.sharedcomputer.admin.listTeams",
   grant: "network.sharedcomputer.membership.grant",
   revocation: "network.sharedcomputer.membership.revocation",
-  group: "network.sharedcomputer.group",
   getMine: "network.sharedcomputer.membership.getMine",
-  gatewayHealth: "network.sharedcomputer.admin.gatewayHealth",
 } as const;
 
 const proc = (id: string) => ({
@@ -103,21 +95,14 @@ export const spaceLexicons = [
 /** Our endpoints: Lua-backed queries and record-write procedures. */
 export const scnLexicons = [
   query(NSID.getMine),
-  query(NSID.gatewayHealth),
   query(NSID.listRequests, { limit: "integer", cursor: "string" }),
   query(NSID.listMembers),
-  query(NSID.getMyUsage, { startDate: "string", endDate: "string" }),
-  query(NSID.listTeams),
-  query(NSID.listMyKeys),
-  proc(NSID.issueKey),
-  proc(NSID.revokeKey),
   proc(NSID.submitRequest),
   proc(NSID.withdrawRequest),
   proc(NSID.approveMember),
   proc(NSID.revokeMember),
   proc(NSID.setRoster),
   proc(NSID.setSpaceAccess),
-  proc(NSID.syncProfile),
 ];
 
 export const allLexicons = [...repoLexicons, ...spaceLexicons, ...scnLexicons];

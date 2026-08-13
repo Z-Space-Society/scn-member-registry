@@ -4,27 +4,30 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Approve a membership application. Caller must be a current admin in the roster. Provisions the LiteLLM user (idempotent: user_id is the DID), and writes the grant to the registry space authored by the calling admin.",
+      "description": "Approve a membership application at a tier. Caller must be a current admin in the roster. Writes the grant to the registry space, authored by the calling admin. Re-approving with a different tier is how a tier change is recorded: it writes a fresh grant, and latest-event-wins resolves it.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["did"],
+          "required": ["did", "tier"],
           "properties": {
             "did": { "type": "string", "format": "did" },
-            "teamId": {
+            "tier": {
               "type": "string",
-              "description": "LiteLLM team ID."
-            },
-            "teamLabel": {
-              "type": "string",
-              "description": "Team alias, recorded on the grant for display.",
-              "maxLength": 200
-            },
-            "email": {
-              "type": "string",
-              "description": "Optional contact email for the LiteLLM user.",
-              "maxLength": 320
+              "description": "The tier slug to record on the grant: level-0 through level-9. Required — see the grant lexicon for why an absent tier is a fail-open bug rather than a harmless default.",
+              "knownValues": [
+                "level-0",
+                "level-1",
+                "level-2",
+                "level-3",
+                "level-4",
+                "level-5",
+                "level-6",
+                "level-7",
+                "level-8",
+                "level-9"
+              ],
+              "maxLength": 64
             }
           }
         }

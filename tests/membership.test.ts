@@ -8,10 +8,8 @@ import {
   getMyMembership,
   getMyRequest,
   listRequests,
-  listTeams,
   revokeMember,
   submitRequest,
-  syncProfile,
   withdrawRequest,
   type Membership,
   type XrpcLike,
@@ -185,34 +183,36 @@ describe("activeMembers", () => {
   it("reports the tier recorded on the winning grant", () => {
     const events = {
       grants: [
-        { rkey: `${DID}:${t1}`, authorDid: ADMIN, teamId: "t-1", tier: "Standard" },
+        { rkey: `${DID}:${t1}`, authorDid: ADMIN, tier: "level-2" },
       ],
       revocations: [],
     };
     expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
-      teamId: "t-1",
-      tier: "Standard",
+      tier: "level-2",
     });
   });
 
   it("prefers the newest grant's tier after a tier change", () => {
     const events = {
       grants: [
-        { rkey: `${DID}:${t1}`, authorDid: ADMIN, teamId: "t-1", tier: "Standard" },
-        { rkey: `${DID}:${t2}`, authorDid: ADMIN, teamId: "t-2", tier: "Priority" },
+        { rkey: `${DID}:${t1}`, authorDid: ADMIN, tier: "level-2" },
+        { rkey: `${DID}:${t2}`, authorDid: ADMIN, tier: "level-5" },
       ],
       revocations: [],
     };
-    expect(activeMembers(events, [ADMIN]).get(DID)?.tier).toBe("Priority");
+    expect(activeMembers(events, [ADMIN]).get(DID)?.tier).toBe("level-5");
   });
 
+  // approveMember rejects a tierless grant at write time, so this only
+  // happens for records written before tier was required. Surface the gap as
+  // undefined rather than inventing a tier: a caller that silently defaulted
+  // would hand out an entitlement nobody granted.
   it("leaves the tier undefined when the grant recorded none", () => {
     const events = {
       grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
       revocations: [],
     };
     expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
-      teamId: undefined,
       tier: undefined,
     });
   });
@@ -226,45 +226,26 @@ describe("listMembers", () => {
 });
 
 describe("approveMember", () => {
-  const team = { teamId: "t-1", alias: "ZAI Standard" };
-
-  it("sends the team id for LiteLLM and the alias for the grant record", async () => {
+  it("sends the did and the tier slug", async () => {
     const xrpc = fakeXrpc(() => ({ ok: true, uri: "ats://x" }));
-    const res = await approveMember(xrpc, DID, { team });
+    const res = await approveMember(xrpc, DID, "level-3");
     expect(res.ok).toBe(true);
     expect(xrpc.call).toHaveBeenCalledWith(NSID.approveMember, undefined, {
       did: DID,
-      teamId: "t-1",
-      teamLabel: "ZAI Standard",
+      tier: "level-3",
     });
   });
 
-  it("includes an email when given", async () => {
+  it("sends the free tier like any other", async () => {
     const xrpc = fakeXrpc(() => ({ ok: true }));
-    await approveMember(xrpc, DID, { email: "a@example.com" });
-    expect(xrpc.call.mock.calls[0][2]).toEqual({
-      did: DID,
-      email: "a@example.com",
-    });
+    await approveMember(xrpc, DID, "level-0");
+    expect(xrpc.call.mock.calls[0][2]).toEqual({ did: DID, tier: "level-0" });
   });
 
-  it("sends only the did when no team or email is chosen", async () => {
+  it("rejects a malformed DID before calling the server", async () => {
     const xrpc = fakeXrpc(() => ({ ok: true }));
-    await approveMember(xrpc, DID);
-    expect(xrpc.call.mock.calls[0][2]).toEqual({ did: DID });
-  });
-});
-
-describe("listTeams", () => {
-  it("returns the teams array", async () => {
-    const teams = [{ teamId: "t-1", alias: "ZAI Standard" }];
-    const xrpc = fakeXrpc(() => ({ teams }));
-    expect(await listTeams(xrpc)).toEqual(teams);
-  });
-
-  it("defaults to empty when the field is missing", async () => {
-    const xrpc = fakeXrpc(() => ({}));
-    expect(await listTeams(xrpc)).toEqual([]);
+    await expect(approveMember(xrpc, "nope", "level-1")).rejects.toThrow();
+    expect(xrpc.call).not.toHaveBeenCalled();
   });
 });
 
@@ -305,45 +286,11 @@ describe("deriveMemberState", () => {
   });
 });
 
-describe("syncProfile", () => {
-  it("sends handle and email together", async () => {
-    const xrpc = fakeXrpc(() => ({ ok: true }));
-    expect(
-      await syncProfile(xrpc, { handle: "atproto.example.com", email: "a@example.com" })
-    ).toBe(true);
-    expect(xrpc.call).toHaveBeenCalledWith(NSID.syncProfile, undefined, {
-      handle: "atproto.example.com",
-      email: "a@example.com",
-    });
-  });
-
-  it("omits whichever value is missing", async () => {
-    const xrpc = fakeXrpc(() => ({ ok: true }));
-    await syncProfile(xrpc, { handle: "atproto.example.com" });
-    expect(xrpc.call.mock.calls[0][2]).toEqual({ handle: "atproto.example.com" });
-  });
-
-  it("does not call the procedure when there is nothing to send", async () => {
-    const xrpc = fakeXrpc(() => ({ ok: true }));
-    expect(await syncProfile(xrpc, {})).toBe(false);
-    expect(xrpc.call).not.toHaveBeenCalled();
-  });
-
-  it("swallows failures so the dashboard is unaffected", async () => {
-    const xrpc: XrpcLike = {
-      call: async () => {
-        throw new Error("gateway down");
-      },
-    };
-    expect(await syncProfile(xrpc, { handle: "atproto.example.com" })).toBe(false);
-  });
-});
-
 describe("revokeMember", () => {
   it("sends the did and an optional reason", async () => {
-    const xrpc = fakeXrpc(() => ({ ok: true, keysRevoked: 2 }));
+    const xrpc = fakeXrpc(() => ({ ok: true }));
     const res = await revokeMember(xrpc, DID, "left the co-op");
-    expect(res.keysRevoked).toBe(2);
+    expect(res.ok).toBe(true);
     expect(xrpc.call).toHaveBeenCalledWith(NSID.revokeMember, undefined, {
       did: DID,
       reason: "left the co-op",

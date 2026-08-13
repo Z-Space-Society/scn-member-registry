@@ -52,11 +52,8 @@ function handle()
       for _, rec in ipairs(page.records or {}) do
         local entry = { rkey = rec.rkey, authorDid = rec.authorDid }
         local record = rec.record or {}
-        if record.litellmTeamId then
-          entry.teamId = record.litellmTeamId
-        end
-        if record.groups and record.groups[1] then
-          entry.tier = record.groups[1]
+        if record.tier then
+          entry.tier = record.tier
         end
         out[#out + 1] = entry
       end

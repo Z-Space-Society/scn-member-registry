@@ -1,68 +1,71 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchAccountEmail } from "../src/pds";
+import { pdsGetRecord } from "../src/pds";
 
-const DID = "did:plc:kzvv6h2tqf4mdxr7wsc3ubna";
+/**
+ * resolvePds memoizes per DID for the life of the module, so each test uses a
+ * distinct one — otherwise a cache hit skips the DID-document fetch and every
+ * queued response lands one position early.
+ */
+let n = 0;
+const nextDid = () => `did:plc:kzvv6h2tqf4mdxr7wsc3ubn${n++}`;
 
-function stubDidDoc() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          service: [
-            { id: "#atproto_pds", serviceEndpoint: "https://pds.test" },
-          ],
-        })
-      )
-    )
+const DID_DOC = JSON.stringify({
+  service: [{ id: "#atproto_pds", serviceEndpoint: "https://pds.test" }],
+});
+
+/**
+ * Both calls go through the same global fetch: first the DID document, then
+ * the record itself. Queueing the responses keeps the order explicit.
+ */
+function stubFetch(...responses: Response[]) {
+  const queue = [...responses];
+  const fetch = vi.fn(async (_url: string | URL | Request) =>
+    queue.shift() ?? new Response("", { status: 500 })
   );
+  vi.stubGlobal("fetch", fetch);
+  return fetch;
 }
 
-function session(handler: (url: string) => Promise<Response>) {
-  return { did: DID, fetchHandler: vi.fn(async (url: string) => handler(url)) };
-}
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-describe("fetchAccountEmail", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("returns the email from the account's own PDS", async () => {
-    stubDidDoc();
-    const s = session(async () =>
-      new Response(JSON.stringify({ did: DID, email: "a@example.com" }))
+describe("pdsGetRecord", () => {
+  it("returns the record value from the owner's PDS", async () => {
+    const did = nextDid();
+    const fetch = stubFetch(
+      new Response(DID_DOC),
+      new Response(JSON.stringify({ value: { note: "hello" } }))
     );
-    expect(await fetchAccountEmail(s)).toBe("a@example.com");
-    expect(s.fetchHandler).toHaveBeenCalledWith(
-      "https://pds.test/xrpc/com.atproto.server.getSession",
-      { method: "GET" }
-    );
-  });
-
-  it("returns null when the account has no email", async () => {
-    stubDidDoc();
-    const s = session(async () => new Response(JSON.stringify({ did: DID })));
-    expect(await fetchAccountEmail(s)).toBeNull();
-  });
-
-  it("returns null when the scope was not granted", async () => {
-    stubDidDoc();
-    const s = session(async () => new Response("nope", { status: 403 }));
-    expect(await fetchAccountEmail(s)).toBeNull();
-  });
-
-  it("returns null rather than throwing when the PDS call fails", async () => {
-    stubDidDoc();
-    const s = session(async () => {
-      throw new Error("network down");
+    expect(await pdsGetRecord(did, "some.collection", "self")).toEqual({
+      note: "hello",
     });
-    expect(await fetchAccountEmail(s)).toBeNull();
+    // Resolved endpoint, repo/collection/rkey as query params.
+    const url = String(fetch.mock.calls[1][0]);
+    expect(url).toContain("https://pds.test/xrpc/com.atproto.repo.getRecord");
+    expect(url).toContain(`repo=${encodeURIComponent(did)}`);
+    expect(url).toContain("rkey=self");
   });
 
-  it("returns null when the DID cannot be resolved", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("nope", { status: 404 }))
+  it("returns null when the record does not exist", async () => {
+    const did = nextDid();
+    stubFetch(
+      new Response(DID_DOC),
+      new Response(JSON.stringify({ error: "RecordNotFound" }), { status: 400 })
     );
-    const s = session(async () => new Response("{}"));
-    expect(await fetchAccountEmail(s)).toBeNull();
+    expect(await pdsGetRecord(did, "some.collection", "self")).toBeNull();
+  });
+
+  // A missing record is a normal state; anything else is not, and must not be
+  // flattened into "they have not applied".
+  it("throws on any other error", async () => {
+    const did = nextDid();
+    stubFetch(
+      new Response(DID_DOC),
+      new Response(JSON.stringify({ error: "InternalServerError" }), {
+        status: 500,
+      })
+    );
+    await expect(pdsGetRecord(did, "some.collection", "self")).rejects.toThrow();
   });
 });

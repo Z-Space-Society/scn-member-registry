@@ -1,6 +1,8 @@
 # Shared Computer Network - Operations
 
-Membership and key management for Shared Computer Network.
+The membership registry for Shared Computer Network: applications, the
+admin roster, grants and revocations. Records and the admin console only —
+nothing here provisions or meters inference.
 
 ## Setup
 
@@ -21,7 +23,7 @@ Two steps need to be done manually in the HappyView dashboard to mint credential
 **2. Configure and provision**
 
 ```sh
-cp .env.example .env    # fill in both keys, the service DID, and LiteLLM values
+cp .env.example .env    # fill in both keys and the service DID
 npm install
 npm run deploy
 ```
@@ -43,7 +45,8 @@ npm run dev
 - Still on `#admin`: **CREATE ROSTER WITH ME ON IT**, then **ADD ADMIN** for
   each admin DID. Adding an admin writes the roster entry and grants registry
   space write access in one action.
-- Sign in as an admin to approve applications.
+- Sign in as an admin to approve applications. Approval records a tier
+  (`level-0`…`level-9`); what a tier entitles someone to is decided elsewhere.
 
 Backfill the `membership.request` and `admin.list` collections from the dashboard if the index needs to catch up on records written before setup.
 

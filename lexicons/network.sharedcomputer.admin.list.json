@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Shared Computer Network admins. The removedAt attribute ends an admin's write authority and their past grants remain valid. Removing an admin invalidates their past grants.",
+      "description": "Shared Computer Network admins. The removedAt attribute ends an admin's write authority going forward; grants they authored while current remain valid. Un-granting a member is always an explicit revocation record, never a side effect of a roster edit — otherwise removing one admin would silently de-member everyone they ever approved, with nothing in the event log to show for it. So a consumer verifying a grant's author asks whether that DID was a current admin at the grant's grantedAt (on or after addedAt, before any removedAt), not whether they are an admin now.",
       "key": "literal:self",
       "record": {
         "type": "object",

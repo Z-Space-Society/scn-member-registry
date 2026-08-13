@@ -144,35 +144,43 @@ describe("activeMembers", () => {
   const t1 = "3mrqo575gjaaa";
   const t2 = "3mrqo575gjbbb";
 
+  /** A grant as listMembers returns it: the space record verbatim. */
+  const grant = (tid: string, authorDid: string, tier?: string) => ({
+    rkey: `${DID}:${tid}`,
+    authorDid,
+    record: {
+      status: "active",
+      grantedAt: "2026-08-12T00:00:00Z",
+      ...(tier === undefined ? {} : { tier }),
+    },
+  });
+
+  const revocation = (tid: string, authorDid: string) => ({
+    rkey: `${DID}:${tid}`,
+    authorDid,
+    record: { revokedAt: "2026-08-12T00:00:00Z" },
+  });
+
   it("returns DIDs with an admin-authored grant", () => {
-    const events = {
-      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
-      revocations: [],
-    };
+    const events = { grants: [grant(t1, ADMIN)], revocations: [] };
     expect([...activeMembers(events, [ADMIN]).keys()]).toEqual([DID]);
   });
 
   it("excludes a DID whose latest event is a revocation", () => {
     const events = {
-      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
-      revocations: [{ rkey: `${DID}:${t2}`, authorDid: ADMIN }],
+      grants: [grant(t1, ADMIN)],
+      revocations: [revocation(t2, ADMIN)],
     };
     expect(activeMembers(events, [ADMIN]).size).toBe(0);
   });
 
   it("ignores grants authored by someone who was never an admin", () => {
-    const events = {
-      grants: [{ rkey: `${DID}:${t1}`, authorDid: OUTSIDER }],
-      revocations: [],
-    };
+    const events = { grants: [grant(t1, OUTSIDER)], revocations: [] };
     expect(activeMembers(events, [ADMIN]).size).toBe(0);
   });
 
   it("honors grants from a departed admin", () => {
-    const events = {
-      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
-      revocations: [],
-    };
+    const events = { grants: [grant(t1, ADMIN)], revocations: [] };
     expect(activeMembers(events, [ADMIN]).has(DID)).toBe(true);
   });
 
@@ -181,12 +189,7 @@ describe("activeMembers", () => {
   });
 
   it("reports the tier recorded on the winning grant", () => {
-    const events = {
-      grants: [
-        { rkey: `${DID}:${t1}`, authorDid: ADMIN, tier: "level-2" },
-      ],
-      revocations: [],
-    };
+    const events = { grants: [grant(t1, ADMIN, "level-2")], revocations: [] };
     expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
       tier: "level-2",
     });
@@ -194,10 +197,7 @@ describe("activeMembers", () => {
 
   it("prefers the newest grant's tier after a tier change", () => {
     const events = {
-      grants: [
-        { rkey: `${DID}:${t1}`, authorDid: ADMIN, tier: "level-2" },
-        { rkey: `${DID}:${t2}`, authorDid: ADMIN, tier: "level-5" },
-      ],
+      grants: [grant(t1, ADMIN, "level-2"), grant(t2, ADMIN, "level-5")],
       revocations: [],
     };
     expect(activeMembers(events, [ADMIN]).get(DID)?.tier).toBe("level-5");
@@ -208,8 +208,17 @@ describe("activeMembers", () => {
   // undefined rather than inventing a tier: a caller that silently defaulted
   // would hand out an entitlement nobody granted.
   it("leaves the tier undefined when the grant recorded none", () => {
+    const events = { grants: [grant(t1, ADMIN)], revocations: [] };
+    expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({
+      tier: undefined,
+    });
+  });
+
+  // The record arriving empty is not hypothetical: it is what a consumer sees
+  // if a future projection drops it again. Must not throw.
+  it("tolerates an event whose record is empty", () => {
     const events = {
-      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN }],
+      grants: [{ rkey: `${DID}:${t1}`, authorDid: ADMIN, record: {} }],
       revocations: [],
     };
     expect(activeMembers(events, [ADMIN]).get(DID)).toEqual({

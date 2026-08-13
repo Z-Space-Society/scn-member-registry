@@ -87,6 +87,11 @@ const VARIABLES = [
   { key: "SERVICE_DID", fallback: "VITE_SERVICE_DID" },
   { key: "BOOTSTRAP_ADMIN_DID" },
   { key: "REGISTRY_SPACE_URI", fallback: "VITE_REGISTRY_SPACE_URI" },
+  // Membership push. Both unset means the Lua skips the notification, which
+  // is the correct state before a consumer is wired up. No VITE_ twin: the
+  // token is a secret and the browser has no business knowing the endpoint.
+  { key: "CORLISS_PUSH_URL" },
+  { key: "CORLISS_PUSH_TOKEN" },
 ];
 
 const baseUrl = (

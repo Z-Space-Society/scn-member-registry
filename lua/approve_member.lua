@@ -55,6 +55,32 @@ function handle()
 
   require_current_admin(caller_did)
 
+  -- Push the event to Corliss, which caches membership to resolve access at
+  -- login. Best-effort by design, on two counts. Unset env means no consumer
+  -- is wired up yet, which is a normal state, not an error. And a push that
+  -- fails is logged rather than raised: the space record *is* the membership
+  -- event, and Corliss holds a cache of it. A stale cache is repairable by
+  -- reconciliation; a grant that errored back to the admin after already
+  -- being written to the space is not repairable from here.
+  local function notify_corliss(payload)
+    if not env.CORLISS_PUSH_URL or not env.CORLISS_PUSH_TOKEN then
+      return
+    end
+    local ok, res = pcall(http.post, env.CORLISS_PUSH_URL, {
+      headers = {
+        Authorization = "Bearer " .. env.CORLISS_PUSH_TOKEN,
+        ["Content-Type"] = "application/json",
+      },
+      body = json.encode(payload),
+    })
+    if not ok then
+      log("membership push: egress failure reaching Corliss")
+    elseif res.status < 200 or res.status >= 300 then
+      log("membership push: status " .. tostring(res.status) .. ": "
+        .. string.sub(res.body or "", 1, 200))
+    end
+  end
+
   -- Validate the DID structure. It becomes part of a space record rkey.
   local subject = input.did
   if type(subject) ~= "string"
@@ -85,6 +111,21 @@ function handle()
   local wrote = space:put_record{
     collection = "network.sharedcomputer.membership.grant",
     rkey = rkey,
+    record = grant,
+  }
+
+  -- The envelope carries exactly the space metadata a reader gets alongside
+  -- the record from atproto.spaces.query — did, rkey, authorDid — wrapped
+  -- around the record verbatim. So reconciliation reading the space fills the
+  -- identical shape, and there is no second schema to keep in step with the
+  -- lexicon. The rkey's TID is the ordering key: grantedAt is only
+  -- second-resolution, so it cannot distinguish two events in the same second
+  -- and cannot stop a retried stale grant resurrecting a revoked member.
+  notify_corliss{
+    event = "grant",
+    did = subject,
+    rkey = rkey,
+    authorDid = caller_did,
     record = grant,
   }
 

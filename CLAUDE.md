@@ -104,6 +104,37 @@ working around it.
   *act* stay out; a write-only notification token to a system we own is a
   different thing. Keep it that way — if the push endpoint ever grows a read
   side, this bullet stops being true.
+- **`RECONCILE_TOKEN` is a read credential, so the bullet above does not cover
+  it.** `syncMembers` exists because a consumer rebuilt from nothing has
+  witnessed no pushes and must read every grant and revocation back out of the
+  space — at boot, with nobody signed in, so it cannot present a current-admin
+  `caller_did` the way `listMembers` demands. What that buys is a token whose
+  leak exposes the **member roll**, which is not nothing; what it still cannot
+  do is write, mint, or act on anyone's behalf. Three things keep it that way
+  and all three are load-bearing: it is a **separate secret** from
+  `CORLISS_PUSH_TOKEN` so the read and the write-notify rotate independently, it
+  is a **separate script** so widening one door cannot silently widen the other,
+  and `sync_members.lua` **fails closed when unset**. If this token ever gains a
+  write path it becomes equivalent to admin authority over membership, which is
+  precisely what the roster check exists to prevent.
+- **XRPC dispatch is unauthenticated — every script is its own security
+  boundary.** Verified against production 2026-08-18: a bare
+  `curl https://view.<domain>/xrpc/network.sharedcomputer.membership.listMembers`
+  with no session and no client key reaches `handle()` and comes back with the
+  script's own `error()` text (HTTP **500**, `script_error` — a Lua error is not
+  a 4xx). So the `if not caller_did then error("authentication required") end`
+  line at the top of every script is not ceremony; it *is* the access control.
+  Two consequences:
+  - `sync_members.lua` deliberately has no `caller_did` check, so
+    `RECONCILE_TOKEN` is its **only** protection and is reachable from anywhere
+    on the internet. Guessing is not the risk (48 chars of `[A-Za-z0-9]`); a
+    **leak** is, and its blast radius is the member roll readable by anyone
+    anywhere, not merely by something on the cluster's network.
+  - The **Admin API is a different surface and is gated**: `/admin/lexicons`,
+    `/admin/scripts` and `/admin/script-variables` require
+    `Authorization: Bearer $HAPPYVIEW_API_KEY` and answer **401** without it
+    (also verified). Open dispatch does *not* mean anyone can deploy a script.
+    Deploy access remains equivalent to authority over the registry — see below.
 - The SPA holds a **public** API client key (`hvc_`) only. No client secret.
 - Any operation writing to the registry goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record

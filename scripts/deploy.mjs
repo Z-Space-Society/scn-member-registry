@@ -71,6 +71,7 @@ const MANIFEST = [
   { file: "network.sharedcomputer.admin.whoami.json", script: "whoami.lua" },
   { file: "network.sharedcomputer.membership.listRequests.json", script: "list_requests.lua" },
   { file: "network.sharedcomputer.membership.listMembers.json", script: "list_members.lua" },
+  { file: "network.sharedcomputer.membership.syncMembers.json", script: "sync_members.lua" },
   { file: "network.sharedcomputer.membership.getMine.json", script: "get_my_membership.lua" },
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
   { file: "network.sharedcomputer.admin.revokeMember.json", script: "revoke_member.lua" },
@@ -92,6 +93,11 @@ const VARIABLES = [
   // token is a secret and the browser has no business knowing the endpoint.
   { key: "CORLISS_PUSH_URL" },
   { key: "CORLISS_PUSH_TOKEN" },
+  // The service read door (syncMembers). Unset means that endpoint refuses
+  // every call, which is the correct state before a consumer is wired up —
+  // and separate from CORLISS_PUSH_TOKEN so the read and the write-notify can
+  // be rotated independently. No VITE_ twin: the browser never calls it.
+  { key: "RECONCILE_TOKEN" },
 ];
 
 const baseUrl = (

@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.membership.syncMembers",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Every grant and revocation in the registry space, for a service rebuilding its own membership cache from scratch. Same output as listMembers, and deliberately the same envelope the membership push sends, so one parser serves push and reconciliation alike. Differs from listMembers only in who may call it: this door is service-only, authenticated by a shared token rather than by a current-admin caller, because the consumer that needs it runs at boot with nobody signed in. Read-only, and it must stay that way — a token that could also write grants would be equivalent to admin authority over membership. Only records in the registry space are returned; a grant published to someone's own PDS and picked up by the index is not membership and never appears here.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["token"],
+          "properties": {
+            "token": {
+              "type": "string",
+              "description": "The shared service token. Carried in the body rather than as a query parameter so it does not land in access logs."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["grants", "revocations"],
+          "properties": {
+            "grants": { "type": "array", "items": { "type": "unknown" } },
+            "revocations": { "type": "array", "items": { "type": "unknown" } }
+          }
+        }
+      }
+    }
+  }
+}

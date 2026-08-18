@@ -117,14 +117,24 @@ working around it.
   and `sync_members.lua` **fails closed when unset**. If this token ever gains a
   write path it becomes equivalent to admin authority over membership, which is
   precisely what the roster check exists to prevent.
-- **XRPC dispatch is unauthenticated — every script is its own security
-  boundary.** Verified against production 2026-08-18: a bare
-  `curl https://view.<domain>/xrpc/network.sharedcomputer.membership.listMembers`
-  with no session and no client key reaches `handle()` and comes back with the
-  script's own `error()` text (HTTP **500**, `script_error` — a Lua error is not
-  a 4xx). So the `if not caller_did then error("authentication required") end`
-  line at the top of every script is not ceremony; it *is* the access control.
-  Two consequences:
+- **QUERY dispatch is unauthenticated; PROCEDURE dispatch is not.** Both verified
+  against production 2026-08-18, and the asymmetry decides the shape of any
+  service-callable endpoint:
+  - A bare `curl .../xrpc/…membership.listMembers` — a **query** — with no
+    session and no client key reaches `handle()` and comes back with the script's
+    own `error()` text (HTTP **500**, `script_error`; a Lua error is not a 4xx).
+    So the `if not caller_did then error("authentication required") end` line at
+    the top of every script is not ceremony; it *is* the access control.
+  - The same call against a **procedure** never reaches the script at all:
+    HappyView answers `{"error":"XRPC procedures require DPoP authentication"}`.
+    **That is why `syncMembers` is a query.** A service holding only a shared
+    token cannot produce a DPoP proof, so a procedure — which would have let the
+    token travel in a request body — is simply not available to it. The token
+    therefore rides in the URL, and the mitigation is that consumers reach this
+    endpoint over an *internal* address: out of any edge or CDN log, and into
+    HappyView's own on a host whose root is already the trust boundary.
+
+  Two further consequences:
   - `sync_members.lua` deliberately has no `caller_did` check, so
     `RECONCILE_TOKEN` is its **only** protection and is reachable from anywhere
     on the internet. Guessing is not the risk (48 chars of `[A-Za-z0-9]`); a

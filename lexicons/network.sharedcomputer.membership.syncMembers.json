@@ -3,18 +3,15 @@
   "id": "network.sharedcomputer.membership.syncMembers",
   "defs": {
     "main": {
-      "type": "procedure",
-      "description": "Every grant and revocation in the registry space, for a service rebuilding its own membership cache from scratch. Same output as listMembers, and deliberately the same envelope the membership push sends, so one parser serves push and reconciliation alike. Differs from listMembers only in who may call it: this door is service-only, authenticated by a shared token rather than by a current-admin caller, because the consumer that needs it runs at boot with nobody signed in. Read-only, and it must stay that way — a token that could also write grants would be equivalent to admin authority over membership. Only records in the registry space are returned; a grant published to someone's own PDS and picked up by the index is not membership and never appears here.",
-      "input": {
-        "encoding": "application/json",
-        "schema": {
-          "type": "object",
-          "required": ["token"],
-          "properties": {
-            "token": {
-              "type": "string",
-              "description": "The shared service token. Carried in the body rather than as a query parameter so it does not land in access logs."
-            }
+      "type": "query",
+      "description": "Every grant and revocation in the registry space, for a service rebuilding its own membership cache from scratch. Same output as listMembers, and deliberately the same envelope the membership push sends, so one parser serves push and reconciliation alike. Differs from listMembers only in who may call it: this door is service-only, authenticated by a shared token rather than by a current-admin caller, because the consumer that needs it runs at boot with nobody signed in. A query rather than a procedure because HappyView requires DPoP authentication on procedures, which a service holding only a shared token cannot provide. Read-only, and it must stay that way — a token that could also write grants would be equivalent to admin authority over membership. Only records in the registry space are returned; a grant published to someone's own PDS and picked up by the index is not membership and never appears here.",
+      "parameters": {
+        "type": "params",
+        "required": ["token"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The shared service token. Carried as a parameter because HappyView gates procedures behind DPoP authentication, so a query is the only shape a token-only caller can use — callers should therefore reach this endpoint over an internal address, keeping the token out of any edge or CDN log."
           }
         }
       },

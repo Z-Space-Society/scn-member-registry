@@ -1,4 +1,4 @@
--- Procedure: network.sharedcomputer.membership.syncMembers
+-- Query: network.sharedcomputer.membership.syncMembers
 -- Every grant and revocation in the registry space, for a service rebuilding
 -- its own membership cache. Same output as list_members.lua; the difference is
 -- entirely in who may call it.
@@ -9,6 +9,19 @@
 -- the two doors separate means the human-auth read and the service read carry
 -- different credentials, revocable independently, and the SPA's endpoint is not
 -- touched by any of this.
+--
+-- Why a QUERY and not a procedure, which would have let the token ride in a
+-- request body instead of the URL: HappyView answers every procedure call with
+-- "XRPC procedures require DPoP authentication" *before* dispatching to the
+-- script, so a caller holding only a shared token can never reach `handle()`.
+-- Queries have no such gate — verified against production, where an
+-- unauthenticated listMembers call returns that script's own error. A query is
+-- therefore the only shape available here.
+--
+-- The cost is real: the token appears in the request URL and so in access logs.
+-- Callers should reach this over an INTERNAL address rather than the public
+-- origin, which keeps it out of any edge or CDN log and confines it to
+-- HappyView's own, on a host whose root is already the trust boundary.
 --
 -- READ-ONLY, and it must stay that way. Everything that writes to the registry
 -- checks caller_did against the current admins; if this token ever gained a
@@ -48,7 +61,7 @@ function handle()
     return diff == 0
   end
 
-  if not token_matches(input.token, env.RECONCILE_TOKEN) then
+  if not token_matches(params.token, env.RECONCILE_TOKEN) then
     error("forbidden: invalid service token")
   end
 

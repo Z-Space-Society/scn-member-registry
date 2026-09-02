@@ -50,10 +50,40 @@ working around it.
   rkeys must be unique per event, so keying on the DID alone collides on
   re-grant. Encoding subject and time in the rkey also lets a listing resolve
   the whole roll without fetching each record.
-- **The space authority is a service DID (did:plc), never a person's.**
-  Authority is set at space creation and cannot be migrated. The rotation key
-  can speak as the network and cannot be re-issued if lost; its custody is a
-  board-level question.
+- **The *registry* space's authority is a service DID (did:plc), never a
+  person's.** Authority is set at space creation and cannot be migrated. The
+  rotation key can speak as the network and cannot be re-issued if lost; its
+  custody is a board-level question. Scoped to the registry space deliberately:
+  a Workspace's authority is its creator's own DID, because `createSpace` makes
+  the caller the authority and there is no way to do otherwise. Two space
+  families, two answers, and neither is a drift from the other.
+- **A space type is a name, not a possession — anyone can mint a space of one
+  of ours, and that is fine.** `com.atproto.simplespace.createSpace` takes a
+  `type` and a `skey` and anchors the result on the *caller's* DID. Nothing in
+  the protocol or in HappyView reserves `network.sharedcomputer.*` to us. So
+  any HappyView session can create `at://{their-did}/space/network.sharedcomputer.registry/main`,
+  or a Workspace of our type that no admin approved.
+
+  **Why that is not a hole, in three parts, all of which must stay true:**
+  - **We address spaces by URI, never by type.** `env.REGISTRY_SPACE_URI` is a
+    fixed value in the script environment. A look-alike under someone else's
+    DID is a different URI and no reader here will ever resolve to it. The day
+    a script *searches* for a space by type instead of being told its URI, this
+    bullet stops being true — do not write that script.
+  - **Nothing is enumerable into.** Workspace listing is scoped to the
+    caller's own membership, so a stranger's look-alike appears on no SCN
+    surface; `recordsPublic: false` and `membershipPublic: false` mean it
+    discloses nothing even to someone holding its URI.
+  - **The cost is a row.** A junk space is storage in HappyView's database, not
+    a capability. It grants its creator nothing they did not already have —
+    they could create a space of any other type just as easily.
+
+  The consequence to accept rather than fix: **Workspace creation is gated by
+  us, not by the protocol.** Our procedure requires the caller to be an active
+  cluster member; a caller who goes straight to `createSpace` bypasses that
+  gate and gets a space SCN will never show, sync, or read. Gating creation
+  protocol-side would mean being the space host, which is the whole
+  bespoke-space-service project we are not doing.
 - Grants and revocations are **admin-authored only**. Applications are
   **member-authored only**. Never blur these.
 - **Read grants from the space, never from the index.** The grant and

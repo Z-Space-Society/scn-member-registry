@@ -1,4 +1,4 @@
-# Shared Computer Network - Operations
+# scn-member-registry
 
 The membership registry for Shared Computer Network: applications, the
 admin roster, grants and revocations. Records and the admin console only —

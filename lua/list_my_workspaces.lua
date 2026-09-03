@@ -5,10 +5,10 @@
 -- caller. Query dispatch is unauthenticated, so the caller_did check below is
 -- not ceremony; it *is* the access control.
 --
--- This is the one place member-registry reads HappyView's own tables. There is
--- no listing-by-DID on the Lua spaces API — the surface is accept_invite,
--- get_access, query, create, list_members, get, is_member — so a raw query is
--- the only in-process option. The alternative was Corliss calling
+-- This is the one place scn-member-registry reads HappyView's own tables.
+-- There is no listing-by-DID on the Lua spaces API — the surface is
+-- accept_invite, get_access, query, create, list_members, get, is_member — so a
+-- raw query is the only in-process option. The alternative was Corliss calling
 -- com.atproto.space.listSpaces as the member, which works but puts a
 -- HappyView-native call into the client contract; keeping the contract ours is
 -- what makes a future move off HappyView a Lua rewrite rather than a client

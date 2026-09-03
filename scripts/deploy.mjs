@@ -104,38 +104,36 @@ const PRELUDE_FILE = join(ROOT, "lua", "lib", "prelude.lua");
 
 /**
  * Script variables to push. Read from .env or the shell; anything unset is
- * skipped, so an early deploy before the space exists is fine. The public
- * VITE_ twins are accepted as fallbacks for the values that appear in both
- * places, so they only need writing down once.
+ * skipped, so an early deploy before the space exists is fine.
+ *
+ * These carried `VITE_` twins until the SPA was deleted — the browser and the
+ * deployer needed the same three values, and the twin saved writing each down
+ * twice. Nothing reaches a browser from this repo any more, so there is one
+ * spelling per value and no prefix to explain.
  */
 const VARIABLES = [
-  { key: "SERVICE_DID", fallback: "VITE_SERVICE_DID" },
+  { key: "SERVICE_DID" },
   { key: "BOOTSTRAP_ADMIN_DID" },
-  { key: "REGISTRY_SPACE_URI", fallback: "VITE_REGISTRY_SPACE_URI" },
+  { key: "REGISTRY_SPACE_URI" },
   // Membership push. Both unset means the Lua skips the notification, which
-  // is the correct state before a consumer is wired up. No VITE_ twin: the
-  // token is a secret and the browser has no business knowing the endpoint.
+  // is the correct state before a consumer is wired up.
   { key: "CORLISS_PUSH_URL" },
   { key: "CORLISS_PUSH_TOKEN" },
   // The service read door (syncMembers). Unset means that endpoint refuses
   // every call, which is the correct state before a consumer is wired up —
   // and separate from CORLISS_PUSH_TOKEN so the read and the write-notify can
-  // be rotated independently. No VITE_ twin: the browser never calls it.
+  // be rotated independently.
   { key: "RECONCILE_TOKEN" },
 ];
 
-const baseUrl = (
-  process.env.HAPPYVIEW_URL ??
-  process.env.VITE_HAPPYVIEW_URL ??
-  ""
-).replace(/\/$/, "");
+const baseUrl = (process.env.HAPPYVIEW_URL ?? "").replace(/\/$/, "");
 const apiKey = process.env.HAPPYVIEW_API_KEY;
 const dryRun = process.argv.includes("--dry-run");
 
 if (!baseUrl || !apiKey) {
   console.error(
-    "Missing config. Set HAPPYVIEW_API_KEY (and HAPPYVIEW_URL or\n" +
-      "VITE_HAPPYVIEW_URL) in .env — see .env.example."
+    "Missing config. Set HAPPYVIEW_URL and HAPPYVIEW_API_KEY in .env —\n" +
+      "see .env.example."
   );
   process.exit(1);
 }
@@ -209,8 +207,8 @@ for (const entry of MANIFEST) {
   }
 }
 
-for (const { key, fallback } of VARIABLES) {
-  const value = process.env[key] ?? (fallback ? process.env[fallback] : undefined);
+for (const { key } of VARIABLES) {
+  const value = process.env[key];
   if (!value) {
     console.log(`${key}: not set locally, skipped`);
     continue;

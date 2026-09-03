@@ -7,8 +7,8 @@
 -- needs it runs at boot, with nobody signed in, so it cannot present a
 -- current-admin caller_did. A shared token is the only thing available. Keeping
 -- the two doors separate means the human-auth read and the service read carry
--- different credentials, revocable independently, and the SPA's endpoint is not
--- touched by any of this.
+-- different credentials, revocable independently. It also meant deleting the
+-- admin SPA left this door untouched, which is the point of the split.
 --
 -- Why a QUERY and not a procedure, which would have let the token ride in a
 -- request body instead of the URL: HappyView answers every procedure call with

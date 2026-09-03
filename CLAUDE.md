@@ -112,7 +112,7 @@ working around it.
 - **Queries return the record verbatim, never a projection.** `listMembers`
   hands back `{rkey, authorDid, record}` — the space metadata wrapped around
   the record untouched. It used to copy out the three fields this repo's own
-  SPA rendered, which quietly dropped `grantedAt`/`revokedAt` and made the
+  SPA once rendered, which quietly dropped `grantedAt`/`revokedAt` and made the
   bullet above false: the push and the read were two shapes for one lexicon,
   so a consumer could not reconcile with the parser it already had. The
   subject DID is not a field — it is the leading half of the rkey, split on the
@@ -175,7 +175,10 @@ working around it.
     `Authorization: Bearer $HAPPYVIEW_API_KEY` and answer **401** without it
     (also verified). Open dispatch does *not* mean anyone can deploy a script.
     Deploy access remains equivalent to authority over the registry — see below.
-- The SPA holds a **public** API client key (`hvc_`) only. No client secret.
+- **No browser holds a credential from this repo, because there is no browser
+  surface left.** The admin SPA held a public API client key (`hvc_`) and no
+  client secret; both it and the key's reason to exist are gone. If a client
+  ever returns here, it gets a public key and nothing more.
 - Any operation writing to the registry goes through a Lua procedure that
   first checks `caller_did` against the current admins in the roster record
   (`network.sharedcomputer.admin.list` in the service DID's repo, anchored by
@@ -229,7 +232,8 @@ point: the registry is a record of who decided what, when.
 ## Membership and tiers
 
 - **Tiers are SCN-owned slugs**, `level-0` through `level-9`, defined in
-  `lua/approve_member.lua` and `src/tiers.ts`. They are not sourced from any
+  `lua/approve_member.lua` — the only definition, since the SPA's `src/tiers.ts`
+  copy went with it. Corliss mirrors them. They are not sourced from any
   gateway: taking the vocabulary from whatever enforces it would rebuild the
   dependency this repo exists without.
 - **A slug, not an integer.** `level-0` is the free tier and the most common

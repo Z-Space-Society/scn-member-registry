@@ -57,7 +57,7 @@ function handle()
         -- last colon rather than trusting a copy.
         --
         -- Deliberately not projected down to the fields this repo's SPA
-        -- happens to render: that dropped grantedAt/revokedAt, which a
+        -- used to render: that dropped grantedAt/revokedAt, which a
         -- consumer reconciling its own cache from here needs, and it meant the
         -- push and the read returned two different shapes for one lexicon.
         out[#out + 1] = {

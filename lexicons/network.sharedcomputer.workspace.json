@@ -1,0 +1,15 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace",
+  "defs": {
+    "main": {
+      "type": "space",
+      "key": "tid",
+      "name": "Workspace",
+      "description": "A member-created, member-shared container. Its authority is its creator's DID — createSpace makes the caller the authority and there is no way to do otherwise — and its member list is the access boundary for everything addressed from inside it. Membership lives here and content lives in Automerge; see ADR-005. A new Workspace has exactly one member, its creator, added automatically by the runtime. Members hold write and there are no roles: the member list is the access control list. Only the creator can change that list, which is a HappyView constraint rather than a choice. The skey is the Workspace's durable identity and is a TID: the authority DID cannot be transferred, so a future migration re-mints under a new authority with the same skey, and every durable reference keys off that rather than off the URI — which also insulates us from the unsettled at:// versus ats:// scheme question. Collections are declared here because HappyView freezes allowedCollections into a space's config at creation; the manifest binding is reserved now even though nothing writes it until a later phase.",
+      "collections": [
+        "network.sharedcomputer.workspace.manifest"
+      ]
+    }
+  }
+}

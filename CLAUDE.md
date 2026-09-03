@@ -188,6 +188,16 @@ working around it.
   Script deployment — dashboard or Admin API — is therefore equivalent to
   authority over the registry. Guard that access like the master key, and
   never interpolate caller input into raw SQL.
+- **`db.raw` reads far wider than it writes, and there is no read allowlist.**
+  Probed against production 2026-09-02: `SELECT` is served, `$1` binding works,
+  and a query reached `information_schema` — it returned rows and failed only on
+  decoding a `name`-typed column, which a `::text` cast fixes. So script-deploy
+  access is read access to **HappyView's whole database**, not merely to the
+  space tables. That does not move the trust boundary — deploy access was
+  already equivalent to authority over the registry — but the bullet above
+  understated it, and anyone reasoning about blast radius should have the
+  wider number. The `never interpolate caller input` rule matters more, not
+  less, for the same reason.
 
 ## What is authoritative where
 

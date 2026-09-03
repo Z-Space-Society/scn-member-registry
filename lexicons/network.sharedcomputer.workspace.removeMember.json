@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace.removeMember",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Remove a member from a Workspace. Creator-only, for the same reason addMember is — which means there is no way to leave a Workspace in this phase: a member cannot remove themselves, and the creator is refused outright because a Workspace whose creator is not a member is a space its owner can manage and cannot read. Removal revokes the member's outstanding space credentials, and it stops future sync without unsharing the past: a departed member keeps whatever replica they already hold, which is inherent to CRDTs and should be said plainly rather than implying removal is retroactive. Idempotent.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["workspace", "did"],
+          "properties": {
+            "workspace": {
+              "type": "string",
+              "description": "The Workspace's space URI. Refused unless its type component is network.sharedcomputer.workspace."
+            },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "member"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "member": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace.listMine",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Every Workspace the caller is a member of. Scoped to the caller and nothing else — there is deliberately no `did` parameter, because the answer is always about whoever is asking, and a Workspace member list is a social graph that should not be enumerable by DID. Ordered newest first, which comes free from the stable ID being a TID.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["workspaces"],
+          "properties": {
+            "workspaces": {
+              "type": "array",
+              "items": { "type": "unknown" },
+              "description": "Each entry is {id, uri, displayName, description, access, isCreator, memberCount}. `id` is the durable name and `uri` is a live address composed from the authority DID, the type and the skey — store the first, re-read the second."
+            }
+          }
+        }
+      }
+    }
+  }
+}

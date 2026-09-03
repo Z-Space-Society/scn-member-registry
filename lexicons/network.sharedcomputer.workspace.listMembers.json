@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace.listMembers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Who is in one Workspace. Member-gated: a non-member is refused, which is what the space's membership_public = false setting means for this door. Returns DIDs and never handles — DID is the join key everywhere, and handle resolution belongs to whatever renders people's names.",
+      "parameters": {
+        "type": "params",
+        "required": ["workspace"],
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "The Workspace's space URI. Refused unless its type component is network.sharedcomputer.workspace, so this endpoint structurally cannot be pointed at the registry space."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["creatorDid", "members"],
+          "properties": {
+            "creatorDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The space authority, which is the URI's first component. The only DID that can change this member list."
+            },
+            "members": {
+              "type": "array",
+              "items": { "type": "unknown" },
+              "description": "Each entry is {did, access, isCreator}. Access is `write` for everyone, because there are no roles."
+            }
+          }
+        }
+      }
+    }
+  }
+}

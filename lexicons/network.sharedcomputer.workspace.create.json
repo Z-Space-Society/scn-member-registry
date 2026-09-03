@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace.create",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Create a Workspace owned by the caller. The caller becomes the space authority — createSpace makes the caller the authority and offers no way to do otherwise — which is why only the creator can manage members afterwards. The caller must be an active cluster member; that gate lives here rather than in the protocol, because nothing reserves this space type to SCN. A new Workspace has exactly one member, the creator, added automatically by the runtime. The returned id is the space's skey and is the Workspace's durable identity: store that, never the uri, because the authority DID cannot be transferred and the at:// versus ats:// scheme is unsettled upstream.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["displayName"],
+          "properties": {
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "What members see. Not an identity — two Workspaces may share a name, and creation is not deduplicated on it."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "id", "uri"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "id": {
+              "type": "string",
+              "description": "The stable Workspace ID: a TID, and the space's skey. The durable name for this Workspace in every other system."
+            },
+            "uri": {
+              "type": "string",
+              "description": "The space URI as it stands today. A live address, not an identity — it is a projection of (authority DID, type, skey) and there is no uri column behind it. Re-read it; do not store it."
+            },
+            "displayName": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "network.sharedcomputer.workspace.addMember",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Add a cluster member to a Workspace. There is deliberately no access parameter: members hold write, there are no roles, and the member list is the access control list. Its absence is a decision rather than a gap — do not add one without reopening that decision. The caller must be the Workspace's creator, which is HappyView's constraint and not ours: add_member accepts the space authority or an instance superuser and nothing else, invites go through the same check, and managing-app policy runs after an unconditional membership check so it can only narrow. The subject must be an active cluster member, so a Workspace cannot be shared outside the cluster. Idempotent.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["workspace", "did"],
+          "properties": {
+            "workspace": {
+              "type": "string",
+              "description": "The Workspace's space URI. Refused unless its type component is network.sharedcomputer.workspace."
+            },
+            "did": { "type": "string", "format": "did" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "member"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "member": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

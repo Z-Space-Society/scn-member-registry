@@ -76,7 +76,31 @@ const MANIFEST = [
   { file: "network.sharedcomputer.admin.approveMember.json", script: "approve_member.lua" },
   { file: "network.sharedcomputer.admin.revokeMember.json", script: "revoke_member.lua" },
   { file: "network.sharedcomputer.admin.setSpaceAccess.json", script: "set_space_access.lua" },
+  // Workspaces. The space type declaration has no script and no backfill: it is
+  // a `"type": "space"` lexicon, not a record, and HappyView copies its
+  // `collections` into a space's allowedCollections at *creation* — so it must
+  // be registered before the first createSpace of this type or a Workspace
+  // freezes an empty list forever.
+  { file: "network.sharedcomputer.workspace.json" },
+  { file: "network.sharedcomputer.workspace.create.json", script: "create_workspace.lua" },
+  { file: "network.sharedcomputer.workspace.listMine.json", script: "list_my_workspaces.lua" },
+  { file: "network.sharedcomputer.workspace.listMembers.json", script: "list_workspace_members.lua" },
+  { file: "network.sharedcomputer.workspace.addMember.json", script: "add_workspace_member.lua" },
+  { file: "network.sharedcomputer.workspace.removeMember.json", script: "remove_workspace_member.lua" },
 ];
+
+/**
+ * Shared Lua helpers, prepended to every script body. HappyView deploys each
+ * script standalone with no module system, so the alternative is copying the
+ * same guards across thirteen files — which is the real maintenance risk now
+ * that the workspace family exists.
+ *
+ * Purely additive: the eight cluster scripts keep their own inline helpers and
+ * never call these, so adopting the prelude changes nothing they do. It does
+ * mean a deploy rewrites all of them, which is a production write worth doing
+ * in a quiet window.
+ */
+const PRELUDE_FILE = join(ROOT, "lua", "lib", "prelude.lua");
 
 /**
  * Script variables to push. Read from .env or the shell; anything unset is
@@ -136,6 +160,8 @@ async function send(method, path, body) {
 
 const post = (path, body) => send("POST", path, body);
 
+const prelude = await readFile(PRELUDE_FILE, "utf8");
+
 let failures = 0;
 
 // Spaces ship disabled; every space route 404s and the Lua spaces API is
@@ -166,12 +192,14 @@ for (const entry of MANIFEST) {
     });
 
     if (entry.script) {
-      const body = await readFile(join(ROOT, "lua", entry.script), "utf8");
+      const script = await readFile(join(ROOT, "lua", entry.script), "utf8");
       await post("/admin/scripts", {
         id: `xrpc.${type}:${lexicon.id}`,
         script_type: "lua",
-        body,
-        description: `Deployed from lua/${entry.script}`,
+        // Prelude first: its helpers are globals precisely so the script body
+        // appended after can see them. A `local` in the prelude could not.
+        body: `${prelude}\n${script}`,
+        description: `Deployed from lua/${entry.script} (+ lua/lib/prelude.lua)`,
       });
       console.log(`  + ${entry.script}`);
     }

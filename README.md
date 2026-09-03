@@ -48,10 +48,24 @@ and an admin. Two of the three are covered; the first is not.
   its uri written into `REGISTRY_SPACE_URI` followed by a re-deploy.
 
   Tracked as [Corliss #8](https://github.com/Z-Space-Society/Corliss/issues/8).
-  Two routes look plausible and neither has been verified: a Lua script writing
-  `happyview_spaces` directly through `db.raw` (permitted, but the row's shape
-  is unconfirmed and a wrong authority is unfixable), or an upstream procedure
-  that takes an explicit authority.
+
+  **The admin API cannot do it** — checked 2026-09-03, so do not re-check.
+  `/admin/spaces`, `/admin/space` and `/admin/spaces/list` all answer `404
+  text/html`, falling through to HappyView's frontend, against a key that
+  answers `200 application/json` on `/admin/lexicons` in the same breath. The
+  `hv_` key this repo already holds reaches lexicons, scripts and script
+  variables, and there is no spaces surface beside them.
+
+  What is left, neither verified:
+  - **A Lua script**, which runs server-side and so needs no DPoP. Either
+    `atproto.spaces.create` (used by `create_workspace.lua`, but it anchors the
+    space on `caller_did`, and what it does when a headless caller has none is
+    unknown), or a `db.raw` INSERT into `happyview_spaces` — permitted per
+    CLAUDE.md, but the row's shape is unconfirmed and a wrong authority cannot
+    be migrated afterwards.
+  - **A stored OAuth session** for the service DID, refreshed rather than
+    re-consented. This is what the SPA had; making it headless means owning
+    token storage and rotation, which is a larger thing than it sounds.
 
 - **The roster and the first admin** — covered by Corliss `v0.9.0`, which
   appoints admins from `/manage/`: it writes the roster entry in the service

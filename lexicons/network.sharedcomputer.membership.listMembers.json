@@ -4,16 +4,54 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Grant and revocation events from the registry space, for resolving who is currently a member. Admin-only: the membership roll is not member-visible. Each entry is the space record verbatim under `record`, plus the `rkey` and `authorDid` the space returns alongside it — the same envelope pushed to the membership consumer on each write, so one parser serves both. The subject DID is not a field: it is the leading half of the rkey, split on the last colon. Only records in the registry space are returned; a grant record published to someone's own PDS and picked up by the index is not membership and never appears here.",
+      "description": "Everyone ever granted membership, resolved from the registry space: each DID's latest event by TID, counting only events whose author was a current admin at the event's time. Callable by a current admin, or by a service presenting a token from a MEMBERS_TOKEN_* script variable. For the raw grant and revocation log, use syncMembers.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "activeOnly": {
+            "type": "boolean",
+            "description": "Return only current members."
+          },
+          "token": {
+            "type": "string",
+            "description": "A service token. Carried as a parameter because HappyView gates procedures behind DPoP authentication, so callers should reach this endpoint over an internal address, keeping the token out of any edge or CDN log."
+          }
+        }
+      },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["grants", "revocations"],
+          "required": ["members"],
           "properties": {
-            "grants": { "type": "array", "items": { "type": "unknown" } },
-            "revocations": { "type": "array", "items": { "type": "unknown" } }
+            "members": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#member" }
+            }
           }
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": ["did", "active", "grantedAt"],
+      "properties": {
+        "did": { "type": "string", "format": "did" },
+        "active": { "type": "boolean" },
+        "tier": {
+          "type": "string",
+          "description": "The tier of the latest grant. Missing only on grants written before tiers were required.",
+          "maxLength": 64
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the latest grant was written."
+        },
+        "revokedAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When membership was revoked, on inactive members."
         }
       }
     }

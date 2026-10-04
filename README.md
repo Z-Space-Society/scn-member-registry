@@ -40,6 +40,25 @@ one from a script, which is why the key is written down rather than generated.
 Backfill the `membership.request` and `admin.list` collections from the
 dashboard if the index needs to catch up on records written before setup.
 
+## Service tokens
+
+A service reads the member list through `listMembers` with a token, adding
+`activeOnly=true` for current members only. Each consumer gets its own token,
+held in a script variable named `MEMBERS_TOKEN_<CONSUMER>`, so issuing or
+revoking one is a dashboard edit with no deploy:
+
+```sh
+openssl rand -hex 24    # the token; values under 32 characters are ignored
+```
+
+Add it as `MEMBERS_TOKEN_SCN_CHAT` (or whichever consumer) under script
+variables, or `POST /admin/script-variables`, and hand the value to the
+consumer. Delete the variable to revoke it. The consumer calls:
+
+```sh
+curl "$HAPPYVIEW_URL/xrpc/network.sharedcomputer.membership.listMembers?activeOnly=true&token=$TOKEN"
+```
+
 ## Bootstrap
 
 A registry needs three things before it can answer anything: a space, a roster,

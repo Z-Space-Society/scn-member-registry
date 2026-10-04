@@ -109,14 +109,20 @@ working around it.
   resurrecting a revoked member. The push fires *after* the space write and
   never fails the call — the record is the event, and a stale cache is the
   recoverable state.
-- **Queries return the record verbatim, never a projection.** `listMembers`
+- **The event log is returned verbatim, never a projection.** `syncMembers`
   hands back `{rkey, authorDid, record}` — the space metadata wrapped around
-  the record untouched. It used to copy out the three fields this repo's own
-  SPA once rendered, which quietly dropped `grantedAt`/`revokedAt` and made the
-  bullet above false: the push and the read were two shapes for one lexicon,
-  so a consumer could not reconcile with the parser it already had. The
-  subject DID is not a field — it is the leading half of the rkey, split on the
-  last colon, because a copy could disagree with it.
+  the record untouched. A projection that dropped `grantedAt`/`revokedAt` would
+  make the bullet above false: the push and the read would be two shapes for
+  one lexicon, so a consumer could not reconcile with the parser it already
+  had. The subject DID is not a field — it is the leading half of the rkey,
+  split on the last colon, because a copy could disagree with it.
+- **`listMembers` is the resolved roll, and the one place outside Corliss that
+  resolves it.** It applies the same rules as Corliss's `reconcile`: authority
+  is checked before ordering, and an author counts only if they were an admin
+  at the event's time. Consumers that only need who is a member call it rather
+  than re-implementing those rules. It fails with an error rather than an
+  empty list whenever the roster can't be trusted, since a consumer would read
+  an empty list as everyone revoked.
 
 ## Secrets
 
@@ -138,7 +144,7 @@ working around it.
   it.** `syncMembers` exists because a consumer rebuilt from nothing has
   witnessed no pushes and must read every grant and revocation back out of the
   space — at boot, with nobody signed in, so it cannot present a current-admin
-  `caller_did` the way `listMembers` demands. What that buys is a token whose
+  `caller_did`. What that buys is a token whose
   leak exposes the **member roll**, which is not nothing; what it still cannot
   do is write, mint, or act on anyone's behalf. Three things keep it that way
   and all three are load-bearing: it is a **separate secret** from
@@ -147,6 +153,14 @@ working around it.
   and `sync_members.lua` **fails closed when unset**. If this token ever gains a
   write path it becomes equivalent to admin authority over membership, which is
   precisely what the roster check exists to prevent.
+- **`MEMBERS_TOKEN_*` variables are read credentials for `listMembers`, one per
+  consumer.** `list_members.lua` finds them by prefix, so issuing or revoking
+  one is a script variable edit with no deploy, and values under 32 characters
+  are ignored. A leak exposes who is a member and at what tier, less than
+  `RECONCILE_TOKEN` exposes. Everything else above about `RECONCILE_TOKEN`
+  holds for each of them: read-only, separate secrets, never shared between
+  consumers. `script-variables:create` can therefore issue read access to the
+  roll, which it already could by overwriting `RECONCILE_TOKEN`.
 - **QUERY dispatch is unauthenticated; PROCEDURE dispatch is not.** Both verified
   against production 2026-08-18, and the asymmetry decides the shape of any
   service-callable endpoint:

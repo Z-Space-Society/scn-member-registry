@@ -8,16 +8,12 @@ working around it.
 
 - **DID is the join key, everywhere, forever.** HappyView `caller_did`, record
   rkeys, and the user id of anything downstream. Never key on handle or email.
-- Rauthy `sub` is an opaque internal ID, not the DID. The DID lives in the
-  Rauthy user's `federation_uid`, reachable via the admin API or a custom
-  claim. Resolve `sub` to the DID at the boundary; never treat `sub` as the
-  DID.
+  Corliss's OIDC `sub` is the DID, so a relying party keying on `sub` keys on
+  the DID.
 - Handles are mutable and display-only. Refresh on every login; never store as
   a foreign key.
-- Email is required at signup (`transition:email`): Rauthy will not create an
-  atproto-federated user without one, so a member without email could never
-  reach chat. It remains a notification channel and a lookup convenience,
-  never an identifier.
+- Email is optional and never an identifier: a notification channel and a
+  lookup convenience at most.
 - Whatever consumes membership keys its own user records on the DID too. That
   is what makes provisioning idempotent on retry, and therefore what makes
   approval safely repeatable without a transaction.

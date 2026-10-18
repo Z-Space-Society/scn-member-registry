@@ -54,7 +54,9 @@ and an admin. Two of the three are covered; the first is not.
   exists, a cluster rebuilt from nothing needs the space created by hand, and
   its uri written into `REGISTRY_SPACE_URI` followed by a re-deploy.
 
-  Tracked as [Corliss #8](https://github.com/Z-Space-Society/Corliss/issues/8).
+  Tracked as [#4](https://github.com/Z-Space-Society/scn-member-registry/issues/4).
+  Deploying this repo from Ansible rather than a laptop is
+  [zai-ops#8](https://github.com/Z-Space-Society/zai-ops/issues/8).
 
   **The admin API cannot do it** — checked 2026-09-03, so do not re-check.
   `/admin/spaces`, `/admin/space` and `/admin/spaces/list` all answer `404
